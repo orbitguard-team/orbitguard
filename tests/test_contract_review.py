@@ -9,7 +9,11 @@ from orbitguard import models
 
 
 def _scenario():
-    """Создаёт синтетический вход без физического прогноза."""
+    """Создаёт синтетический вход без физического прогноза.
+
+    Returns:
+        models.Scenario: Валидный сценарий для проверок контракта.
+    """
     obj = models.SpaceObject("test", [7e6, 0, 0, 0, 7500, 0])
     return models.Scenario(
         "test", datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),

@@ -30,6 +30,8 @@ def accel_central(
     Raises:
         PropagationError: Нулевая или нечисленная позиция.
     """
+    # Общая сигнатура силы: время, скорость и контекст здесь не нужны.
+    del t_s, v_mps, ctx
     radius_m = float(np.linalg.norm(r_m))
     if not np.isfinite(radius_m) or radius_m == 0:
         raise models.PropagationError("Invalid radius in central gravity")
@@ -38,6 +40,8 @@ def accel_central(
 
 @dataclasses.dataclass(frozen=True)
 class _Segment:
+    """Участок dense output RK45 между импульсами, с от epoch."""
+
     start_s: float
     end_s: float
     solution: integrate.OdeSolution
@@ -141,11 +145,30 @@ def propagate(
     floor_m = constants.EARTH_RADIUS_M + constants.MIN_ALTITUDE_M
 
     def rhs(t_s, state):
+        """Правая часть ОДУ.
+
+        Args:
+            t_s (float): Время от epoch, с.
+            state (np.ndarray): Состояние (6,) в м и м/с.
+
+        Returns:
+            np.ndarray: Производная состояния (6,).
+        """
         return np.concatenate((
             state[3:], accel_central(t_s, state[:3], state[3:], context)
         ))
 
     def altitude_boundary(t_s, state):
+        """Событие пересечения нижней границы высоты.
+
+        Args:
+            t_s (float): Время от epoch, с; событие от него не зависит.
+            state (np.ndarray): Состояние (6,) в м и м/с.
+
+        Returns:
+            float: Высота над границей остановки, м.
+        """
+        del t_s
         return np.linalg.norm(state[:3]) - floor_m
 
     altitude_boundary.terminal = True
