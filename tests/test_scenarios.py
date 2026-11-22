@@ -232,7 +232,7 @@ _DELETE = object()
     (_set("forces.j2", 1), "true или false"),
     (_set("synthetic", "yes"), "synthetic"),
     (_set("source", "  "), "source"),
-    (_set("limits.t_latest_s", 20_000.0), "horizon"),
+    (_set("limits.t_latest_s", 20_000.0), "горизонт"),
     (_set("expected.status", "safe"), "expected.status"),
     (_set("expected.witness_impulse", _DELETE), "witness_impulse"),
     (_set("expected.shift_bound_m", 10.0), "shift_bound_m"),
