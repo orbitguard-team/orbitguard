@@ -50,7 +50,7 @@ def conjunction(distance: float, time: float) -> ConjunctionResult:
         Результат с безопасной дистанцией 100 м.
     """
     approach = Approach(time, distance, 2.0)
-    return ConjunctionResult(approach, (approach,), 100.0)
+    return ConjunctionResult(approach, (approach,), 100.0, 3.0)
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def feasible() -> ManeuverResult:
     after = conjunction(120, 72)
     return ManeuverResult(
         Status.FEASIBLE, chosen, conjunction(30, 61), after,
-        (
+        forces=ForceModel(), candidates=(
             CandidateResult(rejected, False, None, "ошибка интегратора"),
             CandidateResult(chosen, True, after, ""),
         ),
@@ -94,7 +94,9 @@ def test_summarize_includes_distances_thresholds_and_impulse(
 
 def test_threshold_violation_and_acceptance_use_different_boundaries(scenario):
     before = conjunction(101, 40)
-    result = ManeuverResult(Status.NO_FEASIBLE_CANDIDATE, None, before, None)
+    result = ManeuverResult(
+        Status.NO_FEASIBLE_CANDIDATE, None, before, None, ForceModel()
+    )
     metrics = summarize(result, scenario=scenario)
     assert metrics["before"]["violated"] is False
     assert metrics["before"]["accepted"] is False
@@ -103,7 +105,7 @@ def test_threshold_violation_and_acceptance_use_different_boundaries(scenario):
 
 def test_safe_baseline_has_zero_delta_v_and_no_burn_time():
     safe = conjunction(200, 40)
-    result = ManeuverResult(Status.ALREADY_SAFE, None, safe, safe)
+    result = ManeuverResult(Status.ALREADY_SAFE, None, safe, safe, ForceModel())
     metrics = summarize(result)
     assert metrics["before"] == metrics["after"]
     assert metrics["dv_eci_mps"] == [0.0, 0.0, 0.0]
@@ -115,7 +117,9 @@ def test_safe_baseline_has_zero_delta_v_and_no_burn_time():
 
 @pytest.mark.parametrize("elapsed", [-1, float("nan"), float("inf"), True])
 def test_rejects_invalid_elapsed_time(elapsed):
-    result = ManeuverResult(Status.PROPAGATION_FAILED, None, None, None)
+    result = ManeuverResult(
+        Status.PROPAGATION_FAILED, None, None, None, ForceModel()
+    )
     with pytest.raises(ValueError, match="compute_time_s"):
         build_metrics(result, compute_time_s=elapsed)
 
@@ -179,7 +183,7 @@ def test_export_rejects_different_candidate_inputs(scenario, feasible, mode):
 
 def test_export_preserves_unexamined_inputs_on_early_success(scenario):
     safe = conjunction(200, 40)
-    result = ManeuverResult(Status.ALREADY_SAFE, None, safe, safe)
+    result = ManeuverResult(Status.ALREADY_SAFE, None, safe, safe, ForceModel())
     report = json.loads(export_result_json(
         scenario, result, candidates=(Impulse(90, [0, 1, 0]),)
     ))
@@ -189,7 +193,8 @@ def test_export_preserves_unexamined_inputs_on_early_success(scenario):
 
 def test_failed_propagation_can_be_exported_without_baseline(scenario):
     result = ManeuverResult(
-        Status.PROPAGATION_FAILED, None, None, None, message="сбой"
+        Status.PROPAGATION_FAILED, None, None, None, ForceModel(),
+        message="сбой"
     )
     report = json.loads(export_result_json(scenario, result))
     metrics = report["metrics"]
@@ -204,6 +209,7 @@ def test_failed_propagation_can_be_exported_without_baseline(scenario):
 def test_empty_candidate_search_exports_empty_list(scenario):
     result = ManeuverResult(
         Status.NO_FEASIBLE_CANDIDATE, None, conjunction(30, 61), None,
+        ForceModel(),
     )
     report = json.loads(export_result_json(scenario, result))
     assert report["candidates"] == []

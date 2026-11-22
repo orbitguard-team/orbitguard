@@ -13,14 +13,14 @@
 metrics = summarize(result, scenario=scenario, compute_time_s=elapsed_s)
 ```
 
-С текущими моделями без `scenario` настройки сил и запас могут быть
-неизвестны, тогда `forces`, `distance_margin_m` и `accepted` равны `null`.
+`forces` берётся из `ManeuverResult.forces`, порог и запас — из
+`ConjunctionResult`. Если сближение не рассчитано (`propagation_failed`),
+порог и запас берутся из `scenario`, а без него равны `null`.
 
 В `before` и `after` есть `d_min_m`, `t_min_s` и `rel_speed_mps`.
 Моменты отсчитываются от UTC-эпохи сценария. `violated` означает
-`d_min_m < safe_distance_m`. `accepted` проверяет порог с запасом:
-`d_min_m ≥ safe_distance_m + distance_margin_m`. Если запас неизвестен,
-`accepted` равен `null`. `d_min_gain_m` — разница минимумов после и до.
+`d_min_m < safe_distance_m`. `accepted` — `ConjunctionResult.accepted` из контракта:
+`d_min_m − safe_distance_m ≥ distance_margin_m`. `d_min_gain_m` — разница минимумов после и до.
 
 Поля `dv_eci_mps`, `dv_mps` и `impulse_t_s` описывают выбранный импульс.
 В состоянии `already_safe` вектор и норма нулевые, время импульса равно

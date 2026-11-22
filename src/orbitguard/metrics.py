@@ -8,7 +8,6 @@ from dataclasses import asdict
 from datetime import datetime
 from importlib import metadata
 from pathlib import Path
-from typing import cast
 
 import numpy as np
 
@@ -16,13 +15,12 @@ from . import models
 
 
 def _closest(
-    result: models.ConjunctionResult | None, margin: float | None
+    result: models.ConjunctionResult | None,
 ) -> dict[str, object] | None:
     """Метрики ближайшего сближения для отчёта.
 
     Args:
         result: Результат поиска сближения или None.
-        margin: Запас к безопасной дистанции, м, или None.
 
     Returns:
         Словарь метрик или None, если результата нет.
@@ -35,9 +33,7 @@ def _closest(
         "t_min_s": result.closest.t_s,
         "rel_speed_mps": result.closest.rel_speed_mps,
         "violated": result.violated,
-        "accepted": None if margin is None else (
-            distance >= result.safe_distance_m + margin
-        ),
+        "accepted": result.accepted,
     }
 
 
@@ -66,13 +62,10 @@ def summarize(
 
     conjunction = result.before or result.after
     threshold = None if conjunction is None else conjunction.safe_distance_m
-    margin = getattr(conjunction, "distance_margin_m", None)
-    forces = getattr(result, "forces", None)
-    if scenario is not None:
-        threshold = scenario.safe_distance_m if threshold is None else threshold
-        if margin is None:
-            margin = scenario.numerics.distance_margin_m
-        forces = scenario.forces if forces is None else forces
+    margin = None if conjunction is None else conjunction.distance_margin_m
+    if scenario is not None and conjunction is None:
+        threshold = scenario.safe_distance_m
+        margin = scenario.numerics.distance_margin_m
 
     impulse = result.best
     if impulse is not None:
@@ -91,12 +84,12 @@ def summarize(
 
     return {
         "status": result.status.value,
-        "before": _closest(result.before, margin),
-        "after": _closest(result.after, margin),
+        "before": _closest(result.before),
+        "after": _closest(result.after),
         "safe_distance_m": threshold,
         "distance_margin_m": margin,
         "d_min_gain_m": gain,
-        "forces": asdict(forces) if forces is not None else None,
+        "forces": asdict(result.forces),
         "dv_eci_mps": delta_v,
         "dv_mps": delta_v_norm,
         "impulse_t_s": impulse_time,
@@ -250,7 +243,6 @@ def export_result_json(
     metrics = summarize(
         result, scenario=scenario, compute_time_s=compute_time_s,
     )
-    margin = cast(float | None, metrics["distance_margin_m"])
     report = {
         "schema_version": 1,
         "units": {
@@ -269,7 +261,7 @@ def export_result_json(
                 "impulse": asdict(item.impulse),
                 "admissible": item.admissible,
                 "reason": item.reason,
-                "after": _closest(item.after, margin),
+                "after": _closest(item.after),
             }
             for item in result.candidates
         ],
