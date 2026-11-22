@@ -1,1 +1,1 @@
-"""OrbitGuard: contracts first; numerical algorithms follow in separate issues."""
+"""OrbitGuard: симулятор безопасных орбитальных манёвров."""
