@@ -44,7 +44,14 @@ FD_STEP_MPS = 1e-3
 # ---------------------------------------------------------------------------
 
 def _stumpff_series(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Ряды C = Σ (−z)^k/(2k+2)!, S = Σ (−z)^k/(2k+3)! для малых |z|."""
+    """Ряды C = Σ (−z)^k/(2k+2)!, S = Σ (−z)^k/(2k+3)! для малых |z|.
+
+    Args:
+        z: Аргумент функций Штумпфа.
+
+    Returns:
+        Значения C(z) и S(z).
+    """
     term_c = np.full_like(z, 0.5)
     term_s = np.full_like(z, 1.0 / 6.0)
     sum_c = term_c.copy()
@@ -58,7 +65,14 @@ def _stumpff_series(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _stumpff(z: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Функции Штумпфа C(z), S(z) без потери точности при малых |z|."""
+    """Функции Штумпфа C(z), S(z) без потери точности при малых |z|.
+
+    Args:
+        z: Аргумент функций Штумпфа.
+
+    Returns:
+        Значения C(z) и S(z).
+    """
     c = np.empty_like(z)
     s = np.empty_like(z)
     small = np.abs(z) < _STUMPFF_SERIES_Z
@@ -184,11 +198,27 @@ def elements_to_state(
 
 
 def _rotation_z(angle_rad: float) -> np.ndarray:
+    """Матрица поворота вокруг оси z.
+
+    Args:
+        angle_rad: Угол, рад.
+
+    Returns:
+        Матрица (3, 3).
+    """
     cos, sin = math.cos(angle_rad), math.sin(angle_rad)
     return np.array([[cos, -sin, 0.0], [sin, cos, 0.0], [0.0, 0.0, 1.0]])
 
 
 def _rotation_x(angle_rad: float) -> np.ndarray:
+    """Матрица поворота вокруг оси x.
+
+    Args:
+        angle_rad: Угол, рад.
+
+    Returns:
+        Матрица (3, 3).
+    """
     cos, sin = math.cos(angle_rad), math.sin(angle_rad)
     return np.array([[1.0, 0.0, 0.0], [0.0, cos, -sin], [0.0, sin, cos]])
 
@@ -284,6 +314,17 @@ class Track:
 
 def _relative(sat: Track, debris: Track, t_s: np.ndarray | float,
               side: str = "right") -> np.ndarray:
+    """Относительное состояние спутника и мусора.
+
+    Args:
+        sat: Траектория спутника.
+        debris: Траектория мусора.
+        t_s: Моменты, с от epoch.
+        side: Сторона импульса.
+
+    Returns:
+        Состояния (N, 6), м и м/с.
+    """
     return sat.states(t_s, side) - debris.states(t_s, side)
 
 
@@ -313,6 +354,15 @@ def segment_minima(sat: Track, debris: Track, start_s: float,
         side = "left" if k + 1 == count - 1 else "right"
 
         def _rate(t_s: float, side: str = side) -> float:
+            """Скорость сближения r_rel · v_rel.
+
+            Args:
+                t_s: Момент, с от epoch.
+                side: Сторона импульса.
+
+            Returns:
+                r_rel · v_rel, м²/с.
+            """
             state = _relative(sat, debris, t_s, side)[0]
             return float(state[:3] @ state[3:])
 

@@ -10,6 +10,7 @@ import json
 import math
 import pathlib
 import sys
+import types
 from collections.abc import Callable
 
 import numpy as np
@@ -46,7 +47,12 @@ import twobody_reference as ref
 # pylint: enable=wrong-import-position,wrong-import-order
 
 
-def _load_example():
+def _load_example() -> types.ModuleType:
+    """Загружает examples/contract_example.py как модуль.
+
+    Returns:
+        Модуль с функцией make_example.
+    """
     path = ROOT / "examples" / "contract_example.py"
     spec = importlib.util.spec_from_file_location("contract_example", path)
     module = importlib.util.module_from_spec(spec)
@@ -55,15 +61,33 @@ def _load_example():
 
 
 def _files() -> list[pathlib.Path]:
+    """Файлы сценариев репозитория.
+
+    Returns:
+        Пути к scenarios/*.json.
+    """
     return scenarios.scenario_paths(ROOT / "scenarios")
 
 
 def _loaded() -> dict[str, tuple]:
+    """Все сценарии с ожиданиями.
+
+    Returns:
+        Словарь: имя файла → (сценарий, ожидание).
+    """
     return {path.stem: scenarios.load_scenario_file(path)
             for path in _files()}
 
 
 def _required_m(scenario: models.Scenario) -> float:
+    """Безопасная дистанция с запасом.
+
+    Args:
+        scenario: Сценарий.
+
+    Returns:
+        Порог, м.
+    """
     return scenario.safe_distance_m + scenario.numerics.distance_margin_m
 
 
@@ -150,12 +174,31 @@ def test_contract_example_loads():
 # ---------------------------------------------------------------------------
 
 def _valid() -> dict:
+    """Исходный JSON корректного сценария.
+
+    Returns:
+        Разобранный объект JSON.
+    """
     path = ROOT / "scenarios" / "dangerous_feasible.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _set(path: str, value):
+def _set(path: str, value: object) -> Callable[[dict], None]:
+    """Создаёт правку JSON по пути вида «a.b.c».
+
+    Args:
+        path: Путь к полю через точку.
+        value: Новое значение или _DELETE для удаления поля.
+
+    Returns:
+        Функция, применяющая правку к объекту JSON.
+    """
     def mutate(data: dict) -> None:
+        """Применяет правку к объекту JSON на месте.
+
+        Args:
+            data: Объект JSON.
+        """
         *parents, last = path.split(".")
         target = data
         for key in parents:
@@ -284,7 +327,15 @@ def test_scenario_without_expectation_loads(tmp_path: pathlib.Path):
 # ---------------------------------------------------------------------------
 
 def _state_by_kepler_equation(elements: dict, dt_s: float) -> np.ndarray:
-    """Независимый перенос: средняя аномалия → уравнение Кеплера."""
+    """Независимый перенос: средняя аномалия → уравнение Кеплера.
+
+    Args:
+        elements: Элементы орбиты.
+        dt_s: Время переноса, с.
+
+    Returns:
+        Состояние (6,), м и м/с.
+    """
     sma, ecc = elements["sma_m"], elements["ecc"]
     nu0 = elements["true_anomaly_rad"]
     ecc_anomaly0 = 2.0 * math.atan2(math.sqrt(1 - ecc) * math.sin(nu0 / 2),
@@ -396,7 +447,15 @@ def test_feasible_witness_is_admissible():
 
 
 def _cw_sigma_max(mean_motion_radps: float, tau_s: float) -> float:
-    """σ_max матрицы Φ_rv Клохесси — Уилтшира (R, T, N)."""
+    """σ_max матрицы Φ_rv Клохесси — Уилтшира (R, T, N).
+
+    Args:
+        mean_motion_radps: Среднее движение, рад/с.
+        tau_s: Время от импульса до сближения, с.
+
+    Returns:
+        Наибольшее сингулярное число, с.
+    """
     nt = mean_motion_radps * tau_s
     sin, cos = math.sin(nt), math.cos(nt)
     stm = np.array([
@@ -446,7 +505,19 @@ def test_no_solution_random_impulses_stay_unsafe():
 # Независимый численный расчёт OG-02 и OG-03
 # ---------------------------------------------------------------------------
 
-def _numeric(scenario: models.Scenario, impulses=()):
+def _numeric(
+    scenario: models.Scenario,
+    impulses: tuple[models.Impulse, ...] = (),
+) -> models.ConjunctionResult:
+    """Численный расчёт сближения кодом OG-02 и OG-03.
+
+    Args:
+        scenario: Сценарий.
+        impulses: Импульсы спутника.
+
+    Returns:
+        Результат поиска сближения.
+    """
     propagation = pytest.importorskip(
         "orbitguard.propagation", reason="ждёт OG-02 (#2)")
     conjunction = pytest.importorskip(

@@ -281,6 +281,20 @@ def _scenario(name: str, epoch: datetime.datetime, horizon_s: float,
               states: tuple[np.ndarray, np.ndarray], debris_name: str,
               limits: models.ManeuverLimits,
               source: str) -> models.Scenario:
+    """Собирает сценарий с общими параметрами генератора.
+
+    Args:
+        name: Имя сценария.
+        epoch: Дата и время начала, UTC.
+        horizon_s: Горизонт прогноза, с.
+        states: Начальные состояния спутника и мусора.
+        debris_name: Имя мусора.
+        limits: Ограничения манёвра.
+        source: Описание происхождения данных.
+
+    Returns:
+        Проверенный сценарий.
+    """
     return models.Scenario(
         name=name, epoch=epoch, horizon_s=horizon_s,
         satellite=models.SpaceObject(SATELLITE_NAME, states[0],
@@ -292,7 +306,21 @@ def _scenario(name: str, epoch: datetime.datetime, horizon_s: float,
 
 def _designed_closest(sat0: np.ndarray, deb0: np.ndarray, horizon_s: float,
                       tca_s: float, miss_m: float) -> tuple:
-    """Минимумы на горизонте; глобальный обязан совпасть с заданным TCA."""
+    """Минимумы на горизонте; глобальный обязан совпасть с заданным TCA.
+
+    Args:
+        sat0: Начальное состояние спутника (6,).
+        deb0: Начальное состояние мусора (6,).
+        horizon_s: Горизонт, с.
+        tca_s: Заданный момент сближения, с.
+        miss_m: Заданная дистанция сближения, м.
+
+    Returns:
+        Глобальный минимум и все локальные минимумы.
+
+    Raises:
+        ArithmeticError: Глобальный минимум не совпал с заданным.
+    """
     minima = ref.approaches(ref.Track(sat0), ref.Track(deb0), horizon_s)
     found = ref.closest(minima)
     if (abs(found.t_s - tca_s) > 1e-6
@@ -304,6 +332,11 @@ def _designed_closest(sat0: np.ndarray, deb0: np.ndarray, horizon_s: float,
 
 
 def _required_m() -> float:
+    """Безопасная дистанция с запасом.
+
+    Returns:
+        Порог, м.
+    """
     return SAFE_DISTANCE_M + NUMERICS.distance_margin_m
 
 
@@ -443,6 +476,14 @@ def min_along_track_dv(sat0: np.ndarray, deb0: np.ndarray, enc: Encounter,
     direction = sign * ref.rtn_basis(ref.kepler(sat0, burn_t_s)[0])[:, 1]
 
     def _margin(dv_mps: float) -> float:
+        """Запас дистанции у исходного сближения после импульса.
+
+        Args:
+            dv_mps: Величина импульса, м/с.
+
+        Returns:
+            Минимальная дистанция минус порог с запасом, м.
+        """
         near = ref.segment_minima(
             ref.Track(sat0, burn_t_s, dv_mps * direction), ref.Track(deb0),
             enc.tca_s - NEAR_TCA_WINDOW_S, enc.tca_s + NEAR_TCA_WINDOW_S)
@@ -478,11 +519,27 @@ def build_all() -> list[Built]:
 # ---------------------------------------------------------------------------
 
 def _path(built: Built) -> pathlib.Path:
+    """Путь к файлу сценария.
+
+    Args:
+        built: Построенный сценарий.
+
+    Returns:
+        Путь в каталоге scenarios/.
+    """
     return OUT_DIR / f"{built.scenario.name}.json"
 
 
 def _close(stored: Any, fresh: Any) -> bool:
-    """Рекурсивное сравнение JSON-данных: числа — с допуском."""
+    """Рекурсивное сравнение JSON-данных: числа — с допуском.
+
+    Args:
+        stored: Данные из файла.
+        fresh: Только что построенные данные.
+
+    Returns:
+        True, если данные совпадают.
+    """
     if isinstance(stored, dict) and isinstance(fresh, dict):
         return (stored.keys() == fresh.keys()
                 and all(_close(stored[k], fresh[k]) for k in stored))
@@ -519,6 +576,14 @@ def check(items: list[Built]) -> list[str]:
 
 
 def _describe(built: Built) -> list[str]:
+    """Строки отчёта о сценарии.
+
+    Args:
+        built: Построенный сценарий.
+
+    Returns:
+        Строки для печати.
+    """
     sc, exp = built.scenario, built.expected
     lines = [
         f"== {sc.name}: {exp.status.value}",

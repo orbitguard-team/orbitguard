@@ -42,6 +42,14 @@ _WITNESS_KEYS = frozenset({"t_s", "dv_eci_mps", "min_distance_m"})
 
 
 def _field_names(cls: type) -> frozenset[str]:
+    """Имена полей dataclass.
+
+    Args:
+        cls: Класс-dataclass.
+
+    Returns:
+        Множество имён полей.
+    """
     return frozenset(field.name for field in dataclasses.fields(cls))
 
 
@@ -86,14 +94,41 @@ class Expectation:
 
 
 def _context(path: str | pathlib.Path) -> str:
+    """Начало текста ошибки с именем файла.
+
+    Args:
+        path: Путь к файлу сценария.
+
+    Returns:
+        Строка вида «Сценарий имя.json».
+    """
     return f"Сценарий {pathlib.Path(path).name}"
 
 
 def _reject_constant(token: str) -> float:
+    """Запрещает NaN и Infinity при разборе JSON.
+
+    Args:
+        token: Текст константы из файла.
+
+    Raises:
+        ValueError: Всегда.
+    """
     raise ValueError(f"недопустимое число {token}: нужны конечные значения")
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Собирает объект JSON, запрещая повторные ключи.
+
+    Args:
+        pairs: Пары ключ-значение в порядке файла.
+
+    Returns:
+        Словарь объекта.
+
+    Raises:
+        ValueError: Ключ встречается дважды.
+    """
     result = {}
     for key, value in pairs:
         if key in result:
@@ -108,6 +143,20 @@ def _check_keys(
     where: str,
     optional: frozenset[str] = frozenset(),
 ) -> Mapping[str, Any]:
+    """Проверяет, что у объекта JSON ровно ожидаемые поля.
+
+    Args:
+        data: Разобранное значение JSON.
+        required: Обязательные поля.
+        where: Путь к значению для текста ошибки.
+        optional: Необязательные поля.
+
+    Returns:
+        Тот же объект.
+
+    Raises:
+        ValueError: Не объект, нет обязательных или есть лишние поля.
+    """
     if not isinstance(data, dict):
         raise ValueError(f"{where}: ожидается объект JSON")
     missing = sorted(required - data.keys())
@@ -120,6 +169,18 @@ def _check_keys(
 
 
 def _number(value: Any, where: str) -> float:
+    """Проверяет конечное число.
+
+    Args:
+        value: Значение из JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Число как float.
+
+    Raises:
+        ValueError: Не число, bool или бесконечность.
+    """
     if (not isinstance(value, Real) or isinstance(value, bool)
             or not math.isfinite(value)):
         raise ValueError(f"{where}: ожидается конечное число")
@@ -127,16 +188,50 @@ def _number(value: Any, where: str) -> float:
 
 
 def _optional_number(value: Any, where: str) -> float | None:
+    """Проверяет конечное число или null.
+
+    Args:
+        value: Значение из JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Число как float или None.
+    """
     return None if value is None else _number(value, where)
 
 
 def _text(value: Any, where: str) -> str:
+    """Проверяет непустую строку.
+
+    Args:
+        value: Значение из JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Та же строка.
+
+    Raises:
+        ValueError: Не строка или пустая строка.
+    """
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{where}: ожидается непустая строка")
     return value
 
 
 def _vector(value: Any, size: int, where: str) -> list[float]:
+    """Проверяет список конечных чисел заданной длины.
+
+    Args:
+        value: Значение из JSON.
+        size: Ожидаемая длина.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Список чисел float.
+
+    Raises:
+        ValueError: Не список или неверная длина.
+    """
     if not isinstance(value, list) or len(value) != size:
         raise ValueError(f"{where}: ожидается список из {size} чисел")
     return [_number(item, f"{where}[{index}]")
@@ -144,6 +239,18 @@ def _vector(value: Any, size: int, where: str) -> list[float]:
 
 
 def _parse_epoch(value: Any, where: str) -> datetime.datetime:
+    """Разбирает эпоху ISO 8601 в UTC.
+
+    Args:
+        value: Значение из JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Дата и время с часовым поясом UTC.
+
+    Raises:
+        ValueError: Не дата ISO 8601 или не UTC.
+    """
     text = _text(value, where)
     try:
         epoch = datetime.datetime.fromisoformat(text)
@@ -168,6 +275,15 @@ def format_epoch(epoch: datetime.datetime) -> str:
 
 
 def _parse_object(data: Any, where: str) -> models.SpaceObject:
+    """Разбирает объект на орбите.
+
+    Args:
+        data: Объект JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Проверенный SpaceObject.
+    """
     data = _check_keys(data, _field_names(models.SpaceObject), where)
     return models.SpaceObject(
         name=_text(data["name"], f"{where}.name"),
@@ -179,6 +295,18 @@ def _parse_object(data: Any, where: str) -> models.SpaceObject:
 
 
 def _parse_forces(data: Any, where: str) -> models.ForceModel:
+    """Разбирает набор сил.
+
+    Args:
+        data: Объект JSON.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Проверенный ForceModel.
+
+    Raises:
+        ValueError: Флаг силы не true/false.
+    """
     data = _check_keys(data, _field_names(models.ForceModel), where)
     flags = {}
     for name in ("j2", "drag", "moon", "sun"):
@@ -193,12 +321,33 @@ def _parse_forces(data: Any, where: str) -> models.ForceModel:
 
 
 def _parse_numbers(data: Any, cls: type, where: str) -> Any:
+    """Разбирает dataclass, все поля которого — числа.
+
+    Args:
+        data: Объект JSON.
+        cls: Класс: ManeuverLimits или Numerics.
+        where: Путь к значению для текста ошибки.
+
+    Returns:
+        Экземпляр cls.
+    """
     data = _check_keys(data, _field_names(cls), where)
     return cls(**{name: _number(value, f"{where}.{name}")
                   for name, value in data.items()})
 
 
 def _parse_scenario(data: Any) -> models.Scenario:
+    """Разбирает сценарий верхнего уровня.
+
+    Args:
+        data: Объект JSON файла.
+
+    Returns:
+        Проверенный Scenario.
+
+    Raises:
+        ValueError: Неверная версия, система координат или synthetic.
+    """
     data = _check_keys(data, _TOP_KEYS, "файл", _OPTIONAL_TOP_KEYS)
     version = data["schema_version"]
     if version != SCHEMA_VERSION or isinstance(version, bool):
@@ -228,6 +377,17 @@ def _parse_scenario(data: Any) -> models.Scenario:
 
 
 def _parse_status(value: Any) -> models.Status:
+    """Разбирает ожидаемый статус.
+
+    Args:
+        value: Значение из JSON.
+
+    Returns:
+        Статус.
+
+    Raises:
+        ValueError: Неизвестный статус.
+    """
     try:
         return models.Status(value)
     except ValueError as exc:
@@ -237,6 +397,14 @@ def _parse_status(value: Any) -> models.Status:
 
 
 def _parse_expectation(data: Any) -> Expectation:
+    """Разбирает блок expected.
+
+    Args:
+        data: Объект JSON блока.
+
+    Returns:
+        Ожидаемый результат с обоснованием.
+    """
     where = "expected"
     data = _check_keys(data, _EXPECTED_KEYS, where, _OPTIONAL_EXPECTED_KEYS)
     closest = _check_keys(data["closest_approach"], _APPROACH_KEYS,
@@ -278,6 +446,10 @@ def _check_expectation(scenario: models.Scenario,
     """Проверяет, что ожидание не противоречит параметрам сценария.
 
     Критерий безопасности — как в contracts.md: d ≥ safe + margin.
+
+    Args:
+        scenario: Проверенный сценарий.
+        expected: Ожидаемый результат.
 
     Raises:
         ValueError: Ожидание внутренне противоречиво.
@@ -325,6 +497,17 @@ def _check_expectation(scenario: models.Scenario,
 
 
 def _read(path: str | pathlib.Path) -> dict[str, Any]:
+    """Читает JSON-файл строго: без NaN и повторных ключей.
+
+    Args:
+        path: Путь к файлу.
+
+    Returns:
+        Разобранный объект JSON.
+
+    Raises:
+        ValueError: Файл не JSON или нарушает строгие правила.
+    """
     try:
         text = pathlib.Path(path).read_text(encoding="utf-8")
         return json.loads(text, parse_constant=_reject_constant,
@@ -408,6 +591,14 @@ def scenario_paths(
 
 
 def _object_to_dict(obj: models.SpaceObject) -> dict[str, Any]:
+    """Преобразует объект на орбите в словарь JSON.
+
+    Args:
+        obj: Объект.
+
+    Returns:
+        Словарь полей объекта.
+    """
     return {
         "name": obj.name,
         "state0": [float(value) for value in obj.state0],
@@ -418,6 +609,14 @@ def _object_to_dict(obj: models.SpaceObject) -> dict[str, Any]:
 
 
 def _expectation_to_dict(expected: Expectation) -> dict[str, Any]:
+    """Преобразует ожидаемый результат в словарь JSON.
+
+    Args:
+        expected: Ожидаемый результат.
+
+    Returns:
+        Словарь блока expected.
+    """
     result = {
         "status": expected.status.value,
         "closest_approach": {
@@ -476,7 +675,16 @@ def scenario_to_dict(
 
 
 def _collapse_number_lists(text: str) -> str:
-    # Векторы печатаются в одну строку: так файл удобнее читать и сравнивать.
+    """Печатает числовые списки в одну строку.
+
+    Так файл удобнее читать и сравнивать.
+
+    Args:
+        text: Текст JSON.
+
+    Returns:
+        Текст с однострочными векторами.
+    """
     pattern = re.compile(r"\[\s+([-+0-9.eE,\s]+?)\s+\]")
     return pattern.sub(
         lambda match: "[" + ", ".join(
