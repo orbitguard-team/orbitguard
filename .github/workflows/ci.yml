@@ -32,7 +32,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
-          if [ -f pyproject.toml ]; then python -m pip install -e .; fi
+          if [ -f pyproject.toml ]; then python -m pip install -e ".[dev,ui]"; fi
 
       - name: pytest
         run: python -m pytest
@@ -53,7 +53,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
-          if [ -f pyproject.toml ]; then python -m pip install -e .; fi
+          if [ -f pyproject.toml ]; then python -m pip install -e ".[dev,ui]"; fi
 
       # Заглушки тестов похожи друг на друга, поэтому в tests/
       # проверка дублирования отключена; в остальном коде она работает.
@@ -61,4 +61,4 @@ jobs:
         run: |
           code=$(git ls-files '*.py' ':!:tests/*')
           if [ -n "$code" ]; then python -m pylint $code; fi
-          python -m pylint --disable=duplicate-code $(git ls-files 'tests/*.py')
+          python -m pylint --disable=duplicate-code,redefined-outer-name $(git ls-files 'tests/*.py')
