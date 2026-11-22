@@ -1,0 +1,8 @@
+# Инструменты проверки для CI и локального запуска (OG-09).
+# Зависимости самого пакета задаются в pyproject.toml (OG-01).
+numpy>=1.26
+pytest>=8.0,<10
+pylint>=3.3,<5
+# Интерфейс app.py; совпадает с extras ui в pyproject.toml.
+plotly>=5,<7
+streamlit>=1.30,<2

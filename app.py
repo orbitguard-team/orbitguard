@@ -1,4 +1,4 @@
-"""Streamlit interface prototype for OG-07."""
+"""Прототип интерфейса Streamlit (OG-07)."""
 
 import numpy as np
 import plotly.graph_objects as go
@@ -12,8 +12,19 @@ SCENARIOS = {
 }
 
 
-def demo_data(scenario, horizon_s, impulse_s):
-    """Generate illustrative coordinates in km on a shared time grid."""
+def demo_data(scenario: str, horizon_s: float, impulse_s: float) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Условные координаты в км на общей сетке времени — не расчёт.
+
+    Args:
+        scenario: Ключ из SCENARIOS.
+        horizon_s: Горизонт, с.
+        impulse_s: Условный момент импульса, с.
+
+    Returns:
+        Сетка времени (N,), с; положения двух объектов (N, 3), км;
+        расстояние между ними (N,), км.
+    """
     offset_km, phase = SCENARIOS[scenario]
     t_s = np.unique(np.append(np.linspace(0, horizon_s, 401), impulse_s))
     angle = 1.6 * (t_s / horizon_s) - 0.8
@@ -32,7 +43,21 @@ def demo_data(scenario, horizon_s, impulse_s):
     return t_s, first, second, distance_km
 
 
-def trajectory_chart(t_s, first, second, closest, impulse):
+def trajectory_chart(t_s: np.ndarray, first: np.ndarray,
+                     second: np.ndarray, closest: int,
+                     impulse: int) -> go.Figure:
+    """3D-график траекторий с точками сближения и импульса.
+
+    Args:
+        t_s: Сетка времени (N,), с.
+        first: Положения спутника (N, 3), км.
+        second: Положения второго объекта (N, 3), км.
+        closest: Индекс сближения в сетке.
+        impulse: Индекс импульса в сетке.
+
+    Returns:
+        Фигура Plotly.
+    """
     figure = go.Figure()
     for name, points in (("Спутник", first), ("Второй объект", second)):
         figure.add_scatter3d(
@@ -69,7 +94,21 @@ def trajectory_chart(t_s, first, second, closest, impulse):
     return figure
 
 
-def distance_chart(t_s, distance_km, threshold_km, closest, impulse):
+def distance_chart(t_s: np.ndarray, distance_km: np.ndarray,
+                   threshold_km: float, closest: int,
+                   impulse: int) -> go.Figure:
+    """График расстояния во времени с порогом и импульсом.
+
+    Args:
+        t_s: Сетка времени (N,), с.
+        distance_km: Расстояние (N,), км.
+        threshold_km: Безопасная дистанция, км.
+        closest: Индекс сближения в сетке.
+        impulse: Индекс импульса в сетке.
+
+    Returns:
+        Фигура Plotly.
+    """
     figure = go.Figure()
     figure.add_scatter(x=t_s, y=distance_km, mode="lines", name="Расстояние")
     figure.add_scatter(
@@ -79,9 +118,12 @@ def distance_chart(t_s, distance_km, threshold_km, closest, impulse):
         marker={"color": "#ff9843", "size": 9},
         name="Сближение",
     )
-    figure.add_hline(y=threshold_km, line_dash="dash", annotation_text="Порог")
-    figure.add_vline(x=t_s[impulse], line_dash="dot", annotation_text="Пример импульса")
-    figure.update_layout(xaxis_title="Время от начала, с", yaxis_title="Расстояние, км")
+    figure.add_hline(y=threshold_km, line_dash="dash",
+                     annotation_text="Порог")
+    figure.add_vline(x=t_s[impulse], line_dash="dot",
+                     annotation_text="Пример импульса")
+    figure.update_layout(xaxis_title="Время от начала, с",
+                         yaxis_title="Расстояние, км")
     return figure
 
 
@@ -100,11 +142,13 @@ def main():
             "Безопасная дистанция, м", value=2000.0, step=100.0
         )
         horizon_s = st.number_input("Горизонт, с", value=3600, step=60)
-        max_delta_v = st.number_input("Максимальный Δv, м/с", value=5.0, step=0.1)
+        max_delta_v = st.number_input("Максимальный Δv, м/с", value=5.0,
+                                      step=0.1)
         with st.expander("Окно манёвра"):
             earliest_s = st.number_input("Начало окна, с", value=0.0, step=60.0)
             latest_s = st.number_input(
-                "Конец окна, с", value=None, step=60.0, placeholder="До горизонта"
+                "Конец окна, с", value=None, step=60.0,
+                placeholder="До горизонта"
             )
             st.caption("Условная точка импульса находится в середине окна.")
         with st.expander("Модель сил"):
@@ -137,7 +181,8 @@ def main():
             return
         impulse_s = earliest_s + (end_s - earliest_s) / 2
         with st.spinner("Подготавливаем демонстрационные данные…"):
-            st.session_state["demo_data"] = demo_data(scenario, horizon_s, impulse_s)
+            st.session_state["demo_data"] = demo_data(scenario, horizon_s,
+                                                      impulse_s)
             st.session_state["demo_impulse_s"] = impulse_s
             st.session_state["demo_settings"] = settings
 

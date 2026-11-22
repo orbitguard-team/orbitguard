@@ -1,0 +1,41 @@
+# Проверка стиля по Google Python Style Guide (docs/DEV_GUIDE.md, раздел 3).
+# Запуск: python -m pylint $(git ls-files '*.py')
+
+[MAIN]
+py-version=3.11
+# Тесты импортируют вспомогательные модули из tests/ и tools/.
+init-hook=import sys; sys.path[:0] = ['src', 'tests', 'tools']
+load-plugins=pylint.extensions.docparams,
+             pylint.extensions.docstyle
+
+[FORMAT]
+max-line-length=80
+indent-string='    '
+
+[BASIC]
+# Короткие имена разрешены для счётчиков и общепринятых обозначений в формулах.
+good-names=i,j,k,r,v,a,b,e,n,t,mu,dt,_
+# Как в pylintrc Google: docstring не обязателен для тестов, main и dunder.
+no-docstring-rgx=(__.*__|main|test.*|.*test|.*Test)$
+
+[PARAMETER_DOCUMENTATION]
+default-docstring-type=google
+accept-no-param-doc=no
+accept-no-raise-doc=no
+accept-no-return-doc=no
+accept-no-yields-doc=no
+
+[MESSAGES CONTROL]
+# Как в pylintrc Google: метрики размера (too-many-*) не проверяются,
+# остальные правила стиля и docstring — строго.
+disable=too-few-public-methods,
+        too-many-arguments,
+        too-many-positional-arguments,
+        too-many-locals,
+        too-many-branches,
+        too-many-statements,
+        too-many-instance-attributes,
+        too-many-return-statements,
+        too-many-public-methods,
+        too-many-nested-blocks,
+        too-many-boolean-expressions
