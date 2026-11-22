@@ -8,7 +8,9 @@ import pytest
 
 from orbitguard.constants import MU_EARTH_M3_S2
 from orbitguard.maneuver import build_rtn_candidates, search_maneuver
-from orbitguard.models import Impulse, ManeuverLimits, Scenario, SpaceObject, Status
+from orbitguard.models import (
+    Impulse, ManeuverLimits, Scenario, SpaceObject, Status,
+)
 from orbitguard.propagation import propagate
 
 
@@ -79,12 +81,15 @@ def test_applies_impulse_and_converges_on_denser_grid(crossing):
         position_atol_m=numerics.position_atol_m / 10,
         velocity_atol_mps=numerics.velocity_atol_mps / 10,
     )
-    dense = search_maneuver(replace(crossing, numerics=refined), candidates=(burn,))
+    refined_scenario = replace(crossing, numerics=refined)
+    dense = search_maneuver(refined_scenario, candidates=(burn,))
     assert nominal.status is dense.status is Status.FEASIBLE
     assert nominal.after.closest.distance_m == pytest.approx(
         dense.after.closest.distance_m, abs=0.1,
     )
-    assert nominal.after.closest.t_s == pytest.approx(dense.after.closest.t_s, abs=0.01)
+    assert nominal.after.closest.t_s == pytest.approx(
+        dense.after.closest.t_s, abs=0.01,
+    )
 
 
 def test_late_impulse_cannot_remove_past_approach(crossing):
@@ -128,7 +133,7 @@ def test_physical_failure_does_not_interrupt_remaining_candidates(crossing):
     assert result.status is Status.FEASIBLE and result.best is valid
     failed = result.candidates[0]
     assert not failed.admissible and failed.after is None
-    assert "Altitude floor" in failed.reason
+    assert failed.reason.startswith("Сбой распространения:")
 
 
 def test_failed_baseline_has_distinct_status(crossing):
@@ -136,7 +141,7 @@ def test_failed_baseline_has_distinct_status(crossing):
     result = search_maneuver(replace(crossing, satellite=falling), candidates=())
     assert result.status is Status.PROPAGATION_FAILED
     assert result.before is result.after is result.best is None
-    assert "Altitude floor" in result.message
+    assert result.message.startswith("Сбой распространения:")
 
 
 def test_already_safe_requires_configured_margin(crossing):
@@ -145,7 +150,9 @@ def test_already_safe_requires_configured_margin(crossing):
     assert result.status is Status.ALREADY_SAFE
     assert result.before is result.after and result.best is None
 
-    near_threshold = replace(distant, safe_distance_m=result.before.closest.distance_m)
+    near_threshold = replace(
+        distant, safe_distance_m=result.before.closest.distance_m,
+    )
     within_margin = search_maneuver(near_threshold, candidates=())
     assert within_margin.status is Status.NO_FEASIBLE_CANDIDATE
     assert not within_margin.before.violated

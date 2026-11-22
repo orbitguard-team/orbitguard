@@ -20,13 +20,25 @@ def build_rtn_candidates(
 
     Порядок элементов сохраняется внутри каждой оси перебора. Базис RTN
     строится по левому пределу состояния до импульса.
+
+    Args:
+        trajectory: Траектория спутника до манёвра.
+        times_s: Моменты импульса от эпохи, с.
+        magnitudes_mps: Модули импульса, м/с.
+        directions_rtn: Ненулевые направления в базисе RTN.
+
+    Returns:
+        Импульсы ECI в порядке времени, направления и модуля.
+
+    Raises:
+        ValueError: Некорректная сетка или неопределённый базис RTN.
     """
     directions = []
     for direction in directions_rtn:
         vector = models.vector(direction, 3, "direction_rtn")
         length = float(np.linalg.norm(vector))
         if not np.isfinite(length) or length == 0:
-            raise ValueError("Направление RTN должно иметь конечную ненулевую норму")
+            raise ValueError("Норма направления RTN должна быть конечной и > 0")
         directions.append(vector / length)
     for magnitude in magnitudes_mps:
         models.finite(magnitude, "magnitude_mps")
@@ -63,6 +75,16 @@ def search_maneuver(
 
     Оба объекта сравниваются на всём горизонте для каждого кандидата.
     При равной норме выбирается более раннее время, затем первый кандидат.
+
+    Args:
+        scenario: Начальные состояния, горизонт, ограничения и допуски.
+        candidates: Конечная последовательность входных импульсов в ECI.
+
+    Returns:
+        Статус, метрики сближения, выбранный импульс и журнал перебора.
+
+    Raises:
+        ValueError: Некорректная конфигурация или неверный тип кандидата.
     """
     candidates = tuple(candidates)
     if any(not isinstance(impulse, models.Impulse) for impulse in candidates):
@@ -90,7 +112,8 @@ def search_maneuver(
         before = approach(track(scenario.satellite))
     except models.PropagationError as exc:
         return models.ManeuverResult(
-            models.Status.PROPAGATION_FAILED, None, None, None, message=str(exc)
+            models.Status.PROPAGATION_FAILED, None, None, None,
+            message=f"Сбой распространения: {exc}",
         )
     if before.closest.distance_m >= required_distance:
         return models.ManeuverResult(models.Status.ALREADY_SAFE, None, before, before)
@@ -111,10 +134,14 @@ def search_maneuver(
         try:
             after = approach(track(scenario.satellite, (impulse,)))
         except models.PropagationError as exc:
-            journal.append(models.CandidateResult(impulse, False, None, str(exc)))
+            journal.append(models.CandidateResult(
+                impulse, False, None, f"Сбой распространения: {exc}"
+            ))
             continue
         admissible = after.closest.distance_m >= required_distance
-        reason = "" if admissible else "Минимальная дистанция меньше порога с запасом"
+        reason = (
+            "" if admissible else "Минимальная дистанция меньше порога с запасом"
+        )
         journal.append(models.CandidateResult(impulse, admissible, after, reason))
 
     evaluated = tuple(journal)
