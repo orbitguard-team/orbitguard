@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "contract_fixture",
+  "epoch": "2026-11-22T00:00:00Z",
+  "frame": "ECI-J2000",
+  "horizon_s": 600.0,
+  "satellite": {
+    "name": "satellite",
+    "state0": [7000000.0, 0.0, 0.0, 0.0, 7546.053290107542, 0.0],
+    "mass_kg": null, "area_m2": null, "cd": null
+  },
+  "debris": {
+    "name": "debris",
+    "state0": [7000000.0, 1000.0, 0.0, 0.0, 7546.053290107542, 0.0],
+    "mass_kg": null, "area_m2": null, "cd": null
+  },
+  "safe_distance_m": 100.0,
+  "limits": {"dv_max_mps": 5.0, "t_earliest_s": 0.0, "t_latest_s": 300.0},
+  "forces": {"j2": false, "drag": false, "moon": false, "sun": false, "density_scale": 1.0},
+  "numerics": {
+    "rtol": 1e-10, "position_atol_m": 0.001, "velocity_atol_mps": 0.000001,
+    "closest_time_tol_s": 0.001, "distance_margin_m": 1.0, "max_step_s": 10.0
+  },
+  "synthetic": true,
+  "source": "Synthetic contract fixture; no safety outcome has been computed"
+}
