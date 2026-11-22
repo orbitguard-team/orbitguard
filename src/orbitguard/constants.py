@@ -1,5 +1,5 @@
-"""SI constants for the baseline spherical-Earth model."""
+"""Константы сферической Земли в СИ."""
 
-MU_EARTH_M3_S2 = 3.986004418e14
-EARTH_RADIUS_M = 6_378_137.0
-MIN_ALTITUDE_M = 100_000.0
+MU_EARTH_M3_S2 = 3.986004418e14  # WGS 84, м³/с²
+EARTH_RADIUS_M = 6_378_137.0  # WGS 84, м
+MIN_ALTITUDE_M = 100_000.0  # Условная граница остановки модели, м
