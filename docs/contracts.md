@@ -60,9 +60,9 @@
 | Scenario | Два объекта, epoch, frame, положительные horizon_s/safe_distance_m, limits, forces, numerics, synthetic, source |
 | Impulse | t_s ≥ 0, конечный dv_eci_mps `(3,)`; dv_mps — евклидова норма |
 | Approach | Неотрицательные t_s, distance_m, rel_speed_mps |
-| ConjunctionResult | closest, all_minima, safe_distance_m; violated вычисляется как d_min < порога |
+| ConjunctionResult | closest, all_minima, safe_distance_m, положительный distance_margin_m (по умолчанию 1 м); violated: d_min < порога; accepted: d_min − порог ≥ запас |
 | CandidateResult | Импульс, admissible, after либо None при сбое, reason |
-| ManeuverResult | status, best, before, after, полный журнал candidates, message |
+| ManeuverResult | status, best, before, after, обязательный forces: ForceModel, полный журнал candidates, warnings, message |
 
 Некорректные входы — `ValueError`, ошибки интеграции/выход из допустимой физической
 области — `PropagationError`. Граничное расстояние ровно в пороге не violated,
@@ -102,6 +102,12 @@ load_scenario(path) -> Scenario
 Возвращаем минимум по проверенным границам и уточнённым локальным минимумам;
 all_minima включает границы, отсортирован по времени, без повторных времён.
 При равном расстоянии выбирается самое раннее время.
+ConjunctionResult проверяет непустой all_minima, строгий порядок времён и closest;
+последовательность копируется в tuple. OG-03 передаёт
+`distance_margin_m=numerics.distance_margin_m` в результат.
+Свойство accepted используется в CandidateResult и ManeuverResult; порог
+и запас before/after должны совпадать. Проверка покрытия границ остаётся в OG-03,
+поскольку ConjunctionResult не хранит исходный интервал.
 Корни (r_a-r_b)·(v_a-v_b)=0 — кандидаты стационарных точек, не все они минимумы.
 Нужно также проверить границы, изломы в моменты импульсов, постоянное расстояние,
 несколько минимумов и чувствительность к сетке. Шаг 10 с не доказывает,
@@ -127,6 +133,13 @@ RTN можно выводить в UI, но единственный источ�
 | feasible | Выбранный Impulse | Исходный и пересчитанный результаты |
 | no_feasible_candidate | None | before есть, after=None; среди проверенных нет допустимого |
 | propagation_failed | None | before/after могут отсутствовать; исходный прогноз не получен |
+
+Во всех статусах `ManeuverResult.forces` явно фиксирует модель расчёта. При
+сбое до первого результата это конфигурация предпринятого расчёта, а не
+утверждение об успешном вычислении. Силы нельзя молча отключать.
+`candidates` и `warnings` копируются в tuple; предупреждения не заменяют ошибки.
+Успешные already_safe/feasible проверяют after.accepted, допустимый кандидат
+проверяет то же свойство.
 
 no_feasible_candidate не доказывает невозможность других манёвров.
 propagation_failed не означает безопасную траекторию. Ошибки конфигурации не
@@ -197,3 +210,21 @@ python examples/contract_example.py
 
 Расход топлива нельзя получить только из Δv: нужны масса, Isp и модель двигателя.
 В базовом результате показываем Δv, дистанцию и время, не вероятность столкновения.
+
+## Уточнения после ревью PR #16
+
+- DEV_GUIDE больше не дублирует API. От предложения в issue #1 сохранены
+  state0/states, t_s/distance_m и UTC epoch; state_at скалярный, с side;
+  импульс хранит только ECI, candidates передаются явно для воспроизводимости.
+- По предложению ревью обязательны forces в результате и проверяемый запас
+  distance_margin_m. Это изменения кандидата контракта, подлежащие повторному review.
+- Канонические константы: MU_EARTH_M3_S2=3.986004418e14 м³/с²,
+  EARTH_RADIUS_M=6378137 м (WGS 84); MIN_ALTITUDE_M=100000 м — условная
+  граница остановки модели, не физическая граница входа в атмосферу.
+  Константы дополнительных сил добавляются в constants.py в OG-13…15 с источниками.
+- J2 по умолчанию выключен до реализации и проверок OG-13. Изменение этого
+  значения по умолчанию требует отдельного согласования в issue #1.
+- Конвертер элементов не входит в текущий контракт: JSON v1 принимает state0.
+  Расширение elements.py относится к OG-06 (#6), после согласования входных
+  элементов и версии JSON в #1; OG-07 пока вводит декартово состояние.
+- finite/vector — публичные помощники валидации для OG-02, их имена сохранены.
