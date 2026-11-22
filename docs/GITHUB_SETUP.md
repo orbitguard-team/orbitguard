@@ -1,6 +1,6 @@
 # GitHub для пяти участников и их агентов
 
-Подготовлено 22 ноября 2026. Известный аккаунт владельца: StefBliz.
+Известный аккаунт владельца: StefBliz.
 Организация: https://github.com/orbitguard-team
 Репозиторий: https://github.com/orbitguard-team/orbitguard
 Project: https://github.com/orgs/orbitguard-team/projects/1/views/1
@@ -36,7 +36,7 @@ Teams → New team → developers: добавь пять участников; �
 ## 3. Доска
 
 На странице ОРГАНИЗАЦИИ: Projects → New project → Board.
-Название: OrbitGuard — MVP к 29 ноября. Выбери импорт задач из orbitguard, если доступен.
+Название: OrbitGuard — MVP. Выбери импорт задач из orbitguard, если доступен.
 Project принадлежит организации; он не является папкой внутри репозитория.
 
 В поле Status установи четыре значения:
@@ -150,7 +150,7 @@ OG-01 и подобные — локальные идентификаторы п
 - После merge связанный issue закрывается; карточка получает Done.
 - Каждый агент видит AGENTS.md и может читать комментарии.
 
-Официальные справки (проверены 22.11.2026):
+Официальные справки:
 
 - https://docs.github.com/en/organizations/collaborating-with-groups-in-organizations/creating-a-new-organization-from-scratch
 - https://docs.github.com/en/issues/planning-and-tracking-with-projects/creating-projects/creating-a-project
