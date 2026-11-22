@@ -2,7 +2,7 @@
 
 import json
 import platform
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 import numpy as np
@@ -18,7 +18,12 @@ from orbitguard.models import (
 
 
 @pytest.fixture
-def scenario():
+def scenario() -> Scenario:
+    """Синтетический сценарий с параметрами объектов.
+
+    Returns:
+        Сценарий.
+    """
     return Scenario(
         name="Синтетический сценарий",
         epoch=datetime(2026, 11, 22, microsecond=123456, tzinfo=timezone.utc),
@@ -34,13 +39,27 @@ def scenario():
     )
 
 
-def conjunction(distance, time):
+def conjunction(distance: float, time: float) -> ConjunctionResult:
+    """Сближение с одним минимумом.
+
+    Args:
+        distance: Расстояние, м.
+        time: Момент, с.
+
+    Returns:
+        Результат с безопасной дистанцией 100 м.
+    """
     approach = Approach(time, distance, 2.0)
     return ConjunctionResult(approach, (approach,), 100.0)
 
 
 @pytest.fixture
-def feasible():
+def feasible() -> ManeuverResult:
+    """Найденный манёвр с одним отклонённым кандидатом.
+
+    Returns:
+        Результат подбора.
+    """
     chosen = Impulse(12, [3, 4, 0])
     rejected = Impulse(90, [0, 1, 0])
     after = conjunction(120, 72)

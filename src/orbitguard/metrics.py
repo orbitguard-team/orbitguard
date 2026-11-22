@@ -18,6 +18,15 @@ from . import models
 def _closest(
     result: models.ConjunctionResult | None, margin: float | None
 ) -> dict[str, object] | None:
+    """Метрики ближайшего сближения для отчёта.
+
+    Args:
+        result: Результат поиска сближения или None.
+        margin: Запас к безопасной дистанции, м, или None.
+
+    Returns:
+        Словарь метрик или None, если результата нет.
+    """
     if result is None:
         return None
     distance = result.closest.distance_m
@@ -120,6 +129,17 @@ def build_metrics(
 
 
 def _json_value(value: object) -> object:
+    """Преобразует значение, которое json не умеет сохранять.
+
+    Args:
+        value: Дата, массив NumPy или скаляр NumPy.
+
+    Returns:
+        Значение, пригодное для JSON.
+
+    Raises:
+        TypeError: Тип не поддерживается.
+    """
     if isinstance(value, datetime):
         return value.isoformat().removesuffix("+00:00") + "Z"
     if isinstance(value, np.ndarray):
@@ -133,6 +153,19 @@ def _input_candidates(
     result: models.ManeuverResult,
     candidates: Sequence[models.Impulse] | None,
 ) -> tuple[models.Impulse, ...] | None:
+    """Определяет входные импульсы для отчёта и сверяет их с журналом.
+
+    Args:
+        result: Результат манёвра с журналом кандидатов.
+        candidates: Переданные импульсы или None.
+
+    Returns:
+        Импульсы в исходном порядке или None, если их не восстановить.
+
+    Raises:
+        ValueError: Журнал пуст при найденном манёвре или импульсы
+            расходятся с журналом.
+    """
     logged = tuple(item.impulse for item in result.candidates)
     complete = result.status in (
         models.Status.FEASIBLE, models.Status.NO_FEASIBLE_CANDIDATE,
@@ -155,6 +188,14 @@ def _input_candidates(
 
 
 def _distribution_version(name: str) -> str | None:
+    """Версия установленного пакета.
+
+    Args:
+        name: Имя дистрибутива.
+
+    Returns:
+        Версия или None, если пакет не установлен.
+    """
     try:
         return metadata.version(name)
     except metadata.PackageNotFoundError:
@@ -162,6 +203,11 @@ def _distribution_version(name: str) -> str | None:
 
 
 def _orbitguard_version() -> str | None:
+    """Версия OrbitGuard из установленного пакета или pyproject.toml.
+
+    Returns:
+        Версия или None, если её не удалось определить.
+    """
     installed = _distribution_version("orbitguard")
     if installed is not None:
         return installed
