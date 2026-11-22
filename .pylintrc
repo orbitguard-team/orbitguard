@@ -1,0 +1,31 @@
+# Проверка стиля по Google Python Style Guide (docs/DEV_GUIDE.md, раздел 3).
+# Запуск: python -m pylint $(git ls-files '*.py')
+
+[MAIN]
+py-version=3.11
+source-roots=src,tests
+load-plugins=pylint.extensions.docparams,
+             pylint.extensions.docstyle
+
+[FORMAT]
+max-line-length=80
+indent-string='    '
+
+[BASIC]
+# Короткие имена разрешены для счётчиков и общепринятых обозначений в формулах.
+good-names=i,j,k,r,v,a,b,e,n,t,mu,dt,_
+
+[PARAMETER_DOCUMENTATION]
+default-docstring-type=google
+accept-no-param-doc=no
+accept-no-raise-doc=no
+accept-no-return-doc=no
+accept-no-yields-doc=no
+
+[DESIGN]
+# Физические функции принимают много параметров (элементы орбиты).
+max-args=8
+max-positional-arguments=8
+
+[MESSAGES CONTROL]
+disable=too-few-public-methods
