@@ -30,6 +30,7 @@ def accel_central(
     Raises:
         PropagationError: Нулевая или нечисленная позиция.
     """
+    del t_s, v_mps, ctx  # Общая сигнатура силы; поле от них не зависит.
     radius_m = float(np.linalg.norm(r_m))
     if not np.isfinite(radius_m) or radius_m == 0:
         raise models.PropagationError("Invalid radius in central gravity")
@@ -38,6 +39,8 @@ def accel_central(
 
 @dataclasses.dataclass(frozen=True)
 class _Segment:
+    """Участок траектории между импульсами с dense output RK45."""
+
     start_s: float
     end_s: float
     solution: integrate.OdeSolution
@@ -140,13 +143,32 @@ def propagate(
     context = models.ForceContext(epoch, obj, forces)
     floor_m = constants.EARTH_RADIUS_M + constants.MIN_ALTITUDE_M
 
-    def rhs(t_s, state):
+    def rhs(t_s: float, state: models.Array) -> models.Array:
+        """Правая часть системы движения.
+
+        Args:
+            t_s: Момент времени, с от epoch.
+            state: Состояние (6,), м и м/с.
+
+        Returns:
+            Производная состояния (6,): скорость и ускорение.
+        """
         return np.concatenate((
             state[3:], accel_central(t_s, state[:3], state[3:], context)
         ))
 
-    def altitude_boundary(t_s, state):
-        return np.linalg.norm(state[:3]) - floor_m
+    def altitude_boundary(t_s: float, state: models.Array) -> float:
+        """Событие пересечения нижней границы высоты.
+
+        Args:
+            t_s: Момент времени, с от epoch; событию не нужен.
+            state: Состояние (6,), м и м/с.
+
+        Returns:
+            Запас высоты над границей, м; ноль — пересечение.
+        """
+        del t_s
+        return float(np.linalg.norm(state[:3]) - floor_m)
 
     altitude_boundary.terminal = True
     altitude_boundary.direction = -1
@@ -154,7 +176,7 @@ def propagate(
                     + [numerics.velocity_atol_mps] * 3)
     segments = []
     state = obj.state0.copy()
-    # Повторная проверка защищает от сознательного изменения read-only массива.
+    # Повторная проверка защищает от изменения read-only массива.
     if (not np.all(np.isfinite(state))
             or np.linalg.norm(state[:3]) < floor_m):
         raise ValueError("Initial state is outside the model domain")
