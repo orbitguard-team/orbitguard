@@ -88,8 +88,6 @@ def test_threshold_boundary_and_explicit_no_solution():
 
 
 def test_unimplemented_algorithms_never_report_success(scenario):
-    with pytest.raises(NotImplementedError, match="OG-02"):
-        propagate(scenario.satellite, scenario.epoch, (0, 600), scenario.forces)
     with pytest.raises(NotImplementedError, match="OG-04"):
         search_maneuver(scenario, candidates=[])
 

@@ -1,21 +1,13 @@
-"""Public signatures only. Implementations belong to OG-02/03/04/06."""
+"""Общий API: propagate реализован; поиск и загрузчик ждут OG-03/04/06."""
 
-from datetime import datetime
 from pathlib import Path
 from collections.abc import Sequence
 
 from .models import (
-    ConjunctionResult, ForceModel, Impulse, ManeuverResult, Numerics,
-    Scenario, SpaceObject, Trajectory,
+    ConjunctionResult, Impulse, ManeuverResult, Numerics,
+    Scenario, Trajectory,
 )
-
-
-def propagate(
-    obj: SpaceObject, epoch: datetime, t_span_s: tuple[float, float],
-    forces: ForceModel, *, numerics: Numerics = Numerics(),
-    impulses: Sequence[Impulse] = (),
-) -> Trajectory:
-    raise NotImplementedError("OG-02: propagation is not implemented")
+from .propagation import propagate
 
 
 def find_closest_approach(
