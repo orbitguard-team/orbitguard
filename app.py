@@ -99,13 +99,24 @@ def main():
         threshold_km = st.number_input("Порог сближения, км", value=2.0, step=0.1)
         horizon_s = st.number_input("Горизонт, с", value=3600, step=60)
         max_delta_v = st.number_input("Максимальный Δv, м/с", value=5.0, step=0.1)
+        with st.expander("Модель сил"):
+            st.caption(
+                "Центральное поле включено в базовую модель. "
+                "Выбор дополнительных сил не меняет демонстрационные графики."
+            )
+            use_j2 = st.checkbox("Несферичность Земли (J2)")
+            use_drag = st.checkbox("Атмосферное сопротивление")
+            use_moon = st.checkbox("Притяжение Луны")
+            use_sun = st.checkbox("Притяжение Солнца")
         st.caption("Лимит Δv будет использован при подборе манёвра в OG-08.")
         submitted = st.button("Построить демонстрацию", type="primary")
 
-    settings = (scenario, threshold_km, horizon_s, max_delta_v)
+    limits = (threshold_km, horizon_s, max_delta_v)
+    forces = (use_j2, use_drag, use_moon, use_sun)
+    settings = (scenario, limits, forces)
     if submitted:
         st.session_state.pop("demo_settings", None)
-        if not all(np.isfinite(value) and value > 0 for value in settings[1:]):
+        if not all(np.isfinite(value) and value > 0 for value in limits):
             st.error("Порог, горизонт и лимит Δv должны быть конечными числами больше нуля.")
             return
         with st.spinner("Подготавливаем демонстрационные данные…"):
