@@ -92,17 +92,33 @@ def search_maneuver(
 
     span = (0.0, scenario.horizon_s)
     numerics = scenario.numerics
-    required_distance = scenario.safe_distance_m + numerics.distance_margin_m
 
     def track(
         obj: models.SpaceObject, impulses: tuple[models.Impulse, ...] = ()
     ) -> models.Trajectory:
+        """Траектория объекта на горизонте сценария.
+
+        Args:
+            obj: Объект с начальным состоянием в ECI.
+            impulses: Импульсы спутника, не более одного.
+
+        Returns:
+            Траектория в ECI-J2000.
+        """
         return propagate(
             obj, scenario.epoch, span, scenario.forces,
             numerics=numerics, impulses=impulses,
         )
 
     def approach(satellite: models.Trajectory) -> models.ConjunctionResult:
+        """Сближение спутника с мусором на горизонте.
+
+        Args:
+            satellite: Траектория спутника.
+
+        Returns:
+            Результат с порогом и запасом сценария.
+        """
         return find_closest_approach(
             satellite, debris, scenario.safe_distance_m, span, numerics=numerics
         )
@@ -113,10 +129,13 @@ def search_maneuver(
     except models.PropagationError as exc:
         return models.ManeuverResult(
             models.Status.PROPAGATION_FAILED, None, None, None,
-            message=f"Сбой распространения: {exc}",
+            forces=scenario.forces, message=f"Сбой распространения: {exc}",
         )
-    if before.closest.distance_m >= required_distance:
-        return models.ManeuverResult(models.Status.ALREADY_SAFE, None, before, before)
+    if before.accepted:
+        return models.ManeuverResult(
+            models.Status.ALREADY_SAFE, None, before, before,
+            forces=scenario.forces,
+        )
 
     limits = scenario.limits
     journal = []
@@ -138,11 +157,14 @@ def search_maneuver(
                 impulse, False, None, f"Сбой распространения: {exc}"
             ))
             continue
-        admissible = after.closest.distance_m >= required_distance
+        admissible = after.accepted
         reason = (
-            "" if admissible else "Минимальная дистанция меньше порога с запасом"
+            "" if admissible
+            else "Минимальная дистанция меньше порога с запасом"
         )
-        journal.append(models.CandidateResult(impulse, admissible, after, reason))
+        journal.append(
+            models.CandidateResult(impulse, admissible, after, reason)
+        )
 
     evaluated = tuple(journal)
     best = min(
@@ -152,8 +174,10 @@ def search_maneuver(
     )
     if best is None:
         return models.ManeuverResult(
-            models.Status.NO_FEASIBLE_CANDIDATE, None, before, None, evaluated
+            models.Status.NO_FEASIBLE_CANDIDATE, None, before, None,
+            forces=scenario.forces, candidates=evaluated,
         )
     return models.ManeuverResult(
-        models.Status.FEASIBLE, best.impulse, before, best.after, evaluated
+        models.Status.FEASIBLE, best.impulse, before, best.after,
+        forces=scenario.forces, candidates=evaluated,
     )
