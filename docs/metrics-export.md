@@ -8,6 +8,14 @@
 показать порог, запас и настройки модели сил даже при ошибке прогноза.
 `build_metrics(result, compute_time_s=...)` остаётся доступным.
 
+В интерфейсе OG-08 используйте
+```python
+metrics = summarize(result, scenario=scenario, compute_time_s=elapsed_s)
+```
+
+С текущими моделями без `scenario` настройки сил и запас могут быть
+неизвестны, тогда `forces`, `distance_margin_m` и `accepted` равны `null`.
+
 В `before` и `after` есть `d_min_m`, `t_min_s` и `rel_speed_mps`.
 Моменты отсчитываются от UTC-эпохи сценария. `violated` означает
 `d_min_m < safe_distance_m`. `accepted` проверяет порог с запасом:
