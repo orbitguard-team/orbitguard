@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from orbitguard import models
-from orbitguard.maneuver import search_maneuver
+from orbitguard.maneuver import build_rtn_candidates, search_maneuver
 from orbitguard.metrics import export_result_json
 from orbitguard.propagation import propagate
 from orbitguard.scenarios import load_scenario_file
@@ -90,6 +90,25 @@ def test_insufficient_budget_and_late_window_are_explicit():
                                  candidates=(burn,))
         assert result.status is models.Status.NO_FEASIBLE_CANDIDATE
         assert result.after is None and not result.candidates[0].admissible
+
+
+def test_late_warning_has_no_solution_in_nonempty_grid():
+    """Опасный поздний сценарий отвергает двенадцать допустимых импульсов."""
+    scenario, _ = _load("late_warning_no_solution")
+    baseline = propagate(
+        scenario.satellite, scenario.epoch, (0, scenario.horizon_s),
+        scenario.forces, numerics=scenario.numerics)
+    candidates = build_rtn_candidates(
+        baseline, times_s=(0, scenario.limits.t_latest_s),
+        directions_rtn=((1, 0, 0), (-1, 0, 0), (0, 1, 0),
+                        (0, -1, 0), (0, 0, 1), (0, 0, -1)),
+        magnitudes_mps=(scenario.limits.dv_max_mps,))
+    assert len(candidates) == 12
+    result = search_maneuver(scenario, candidates=candidates)
+    assert result.status is models.Status.NO_FEASIBLE_CANDIDATE
+    assert result.after is None and len(result.candidates) == 12
+    assert all(not candidate.admissible for candidate in result.candidates)
+    assert all(candidate.after is not None for candidate in result.candidates)
 
 
 def test_tighter_numerics_preserve_status_and_minimum():
