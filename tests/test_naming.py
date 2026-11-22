@@ -1,23 +1,18 @@
-"""Проверка соглашений об именах в структурах данных (docs/DEV_GUIDE.md).
+"""Соглашения об именах в структурах orbitguard.models.
 
-Числовые поля несут единицу или систему координат в суффиксе имени,
-структуры неизменяемы. Включается автоматически, когда появится
-orbitguard.models (OG-01).
+Числовые поля несут единицу в суффиксе имени, структуры неизменяемы.
+Включается автоматически, когда есть orbitguard.models (OG-01).
 """
 
 import dataclasses
 import inspect
-import typing
 
-import numpy as np
 import pytest
+
+import naming_rules
 
 models = pytest.importorskip(
     "orbitguard.models", reason="Модуля models ещё нет: ждёт OG-01 (#1)")
-
-UNIT_SUFFIXES = ("_m", "_mps", "_mps2", "_s", "_kg", "_m2", "_rad", "_deg",
-                 "_kgpm3", "_m3ps2", "_radps", "_m2pkg", "_eci", "_rtn")
-DIMENSIONLESS = {"cd", "ecc", "j2", "density_scale"}
 
 
 def _dataclasses() -> list[type]:
@@ -31,19 +26,6 @@ def _dataclasses() -> list[type]:
         if dataclasses.is_dataclass(cls)
         and cls.__module__ == models.__name__
     ]
-
-
-def _is_numeric(annotation: object) -> bool:
-    """Аннотация описывает число или массив.
-
-    Args:
-        annotation: Тип поля.
-
-    Returns:
-        True для float, int и np.ndarray, в том числе с None.
-    """
-    args = typing.get_args(annotation) or (annotation,)
-    return any(arg in (float, int, np.ndarray) for arg in args)
 
 
 def test_models_has_dataclasses():
@@ -63,16 +45,10 @@ def test_dataclass_is_frozen(cls: type):
 
 @pytest.mark.parametrize("cls", _dataclasses(), ids=lambda c: c.__name__)
 def test_numeric_fields_have_unit_suffix(cls: type):
-    """У числовых полей есть суффикс единицы или системы координат.
+    """У числовых полей есть суффикс единицы или согласованное имя.
 
     Args:
         cls: Проверяемая структура.
     """
-    hints = typing.get_type_hints(cls)
-    bad = [
-        field.name for field in dataclasses.fields(cls)
-        if _is_numeric(hints[field.name])
-        and field.name not in DIMENSIONLESS
-        and not field.name.endswith(UNIT_SUFFIXES)
-    ]
+    bad = naming_rules.fields_without_unit(cls)
     assert not bad, f"{cls.__name__}: поля без единицы {bad}"
