@@ -164,4 +164,6 @@ def find_closest_approach(
 
     minima = tuple(approach(time) for time in sorted(times))
     closest = min(minima, key=lambda item: (item.distance_m, item.t_s))
-    return ConjunctionResult(closest, minima, safe_distance_m)
+    return ConjunctionResult(
+        closest, minima, safe_distance_m, numerics.distance_margin_m
+    )

@@ -88,6 +88,18 @@ class ConjunctionTests(unittest.TestCase):
             self.assertAlmostEqual(coarse_minimum.distance_m,
                                    dense_minimum.distance_m, delta=0.1)
 
+    def test_margin_comes_from_numerics(self):
+        moving = AnalyticTrajectory([0, 10], lambda t: t - 5,
+                                    lambda _t, _side: 1, 2)
+        result = find_closest_approach(
+            moving, self.stationary, 1, (0, 10),
+            numerics=Numerics(distance_margin_m=2.5),
+        )
+        self.assertEqual(result.distance_margin_m, 2.5)
+        self.assertEqual(result.closest.distance_m, 2)
+        self.assertFalse(result.violated)
+        self.assertFalse(result.accepted)
+
     def test_boundary_minimum_and_constant_distance(self):
         for slope, expected in ((-1, 8), (0, 2), (1, 2)):
             with self.subTest(slope=slope):
