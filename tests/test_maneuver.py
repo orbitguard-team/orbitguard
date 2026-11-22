@@ -8,11 +8,19 @@ import pytest
 
 from orbitguard.constants import MU_EARTH_M3_S2
 from orbitguard.maneuver import build_rtn_candidates, search_maneuver
-from orbitguard.models import Impulse, ManeuverLimits, Scenario, SpaceObject, Status
+from orbitguard.models import (ConjunctionResult, Impulse, ManeuverLimits,
+                               Scenario, SpaceObject, Status)
 from orbitguard.propagation import propagate
 
 
-def assert_crossing(conjunction, tolerance_s):
+def assert_crossing(conjunction: ConjunctionResult,
+                    tolerance_s: float) -> None:
+    """Проверяет, что сближение — пересечение орбит в t = 300 с.
+
+    Args:
+        conjunction: Результат поиска сближения.
+        tolerance_s: Допуск по времени, с.
+    """
     closest = conjunction.closest
     assert closest.t_s == pytest.approx(300, abs=tolerance_s)
     # Допуск времени переводится в расстояние через относительную скорость.
@@ -21,12 +29,26 @@ def assert_crossing(conjunction, tolerance_s):
 
 @pytest.fixture
 def crossing() -> Scenario:
+    """Две круговые орбиты, пересекающиеся в t = 300 с.
+
+    Returns:
+        Сценарий сближения.
+    """
     radius = 7e6
     speed = np.sqrt(MU_EARTH_M3_S2 / radius)
     phase = -300 * speed / radius
     x_dir = np.array([1.0, 0.0, 0.0])
 
-    def object_on_circle(name, inclination):
+    def object_on_circle(name: str, inclination: float) -> SpaceObject:
+        """Объект на круговой орбите с заданным наклонением.
+
+        Args:
+            name: Имя объекта.
+            inclination: Наклонение, рад.
+
+        Returns:
+            Объект, проходящий точку пересечения в t = 300 с.
+        """
         y_dir = np.array([0, np.cos(inclination), np.sin(inclination)])
         position = radius * (np.cos(phase) * x_dir + np.sin(phase) * y_dir)
         velocity = speed * (-np.sin(phase) * x_dir + np.cos(phase) * y_dir)
@@ -54,7 +76,8 @@ def test_chooses_smallest_impulse_then_earliest_time(crossing):
     assert result.best is early
     assert all(item.admissible for item in result.candidates)
     assert all(
-        item.impulse is burn for item, burn in zip(result.candidates, candidates)
+        item.impulse is burn
+        for item, burn in zip(result.candidates, candidates)
     )
     assert_crossing(result.before, crossing.numerics.closest_time_tol_s)
     assert result.after.closest.distance_m >= 101
@@ -79,12 +102,14 @@ def test_applies_impulse_and_converges_on_denser_grid(crossing):
         position_atol_m=numerics.position_atol_m / 10,
         velocity_atol_mps=numerics.velocity_atol_mps / 10,
     )
-    dense = search_maneuver(replace(crossing, numerics=refined), candidates=(burn,))
+    dense = search_maneuver(replace(crossing, numerics=refined),
+                            candidates=(burn,))
     assert nominal.status is dense.status is Status.FEASIBLE
     assert nominal.after.closest.distance_m == pytest.approx(
         dense.after.closest.distance_m, abs=0.1,
     )
-    assert nominal.after.closest.t_s == pytest.approx(dense.after.closest.t_s, abs=0.01)
+    assert nominal.after.closest.t_s == pytest.approx(
+        dense.after.closest.t_s, abs=0.01)
 
 
 def test_late_impulse_cannot_remove_past_approach(crossing):
@@ -133,7 +158,8 @@ def test_physical_failure_does_not_interrupt_remaining_candidates(crossing):
 
 def test_failed_baseline_has_distinct_status(crossing):
     falling = SpaceObject("falling", [7e6, 0, 0, -5000, 7546, 0])
-    result = search_maneuver(replace(crossing, satellite=falling), candidates=())
+    result = search_maneuver(replace(crossing, satellite=falling),
+                             candidates=())
     assert result.status is Status.PROPAGATION_FAILED
     assert result.before is result.after is result.best is None
     assert "Altitude floor" in result.message
@@ -145,7 +171,8 @@ def test_already_safe_requires_configured_margin(crossing):
     assert result.status is Status.ALREADY_SAFE
     assert result.before is result.after and result.best is None
 
-    near_threshold = replace(distant, safe_distance_m=result.before.closest.distance_m)
+    near_threshold = replace(
+        distant, safe_distance_m=result.before.closest.distance_m)
     within_margin = search_maneuver(near_threshold, candidates=())
     assert within_margin.status is Status.NO_FEASIBLE_CANDIDATE
     assert not within_margin.before.violated
@@ -160,7 +187,8 @@ def test_grid_expands_rtn_axes_in_stable_order(crossing):
         directions_rtn=([2, 0, 0], [0, 0, -1]),
     )
     assert [burn.t_s for burn in candidates] == [0] * 4 + [20] * 4
-    assert [burn.dv_mps for burn in candidates] == pytest.approx([1, 2, 1, 2] * 2)
+    assert [burn.dv_mps for burn in candidates] == pytest.approx(
+        [1, 2, 1, 2] * 2)
     initial_radial = crossing.satellite.state0[:3] / 7e6
     np.testing.assert_allclose(candidates[0].dv_eci_mps, initial_radial)
     np.testing.assert_allclose(candidates[3].dv_eci_mps, [0, 0, -2])

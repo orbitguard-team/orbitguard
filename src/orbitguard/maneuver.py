@@ -20,13 +20,27 @@ def build_rtn_candidates(
 
     Порядок элементов сохраняется внутри каждой оси перебора. Базис RTN
     строится по левому пределу состояния до импульса.
+
+    Args:
+        trajectory: Траектория спутника без манёвра.
+        times_s: Моменты импульса, с от epoch.
+        magnitudes_mps: Величины импульса, м/с.
+        directions_rtn: Направления (3,) в осях RTN; нормируются.
+
+    Returns:
+        Импульсы в ECI в порядке время → направление → величина.
+
+    Raises:
+        ValueError: Нулевое направление, нечисловые значения или
+            неопределённый базис RTN.
     """
     directions = []
     for direction in directions_rtn:
         vector = models.vector(direction, 3, "direction_rtn")
         length = float(np.linalg.norm(vector))
         if not np.isfinite(length) or length == 0:
-            raise ValueError("Направление RTN должно иметь конечную ненулевую норму")
+            raise ValueError(
+                "Направление RTN должно иметь конечную ненулевую норму")
         directions.append(vector / length)
     for magnitude in magnitudes_mps:
         models.finite(magnitude, "magnitude_mps")
@@ -63,6 +77,16 @@ def search_maneuver(
 
     Оба объекта сравниваются на всём горизонте для каждого кандидата.
     При равной норме выбирается более раннее время, затем первый кандидат.
+
+    Args:
+        scenario: Сценарий сближения.
+        candidates: Проверяемые импульсы.
+
+    Returns:
+        Статус, выбранный импульс, сближения до и после и журнал проверки.
+
+    Raises:
+        ValueError: Если среди кандидатов есть не Impulse.
     """
     candidates = tuple(candidates)
     if any(not isinstance(impulse, models.Impulse) for impulse in candidates):
@@ -75,25 +99,43 @@ def search_maneuver(
     def track(
         obj: models.SpaceObject, impulses: tuple[models.Impulse, ...] = ()
     ) -> models.Trajectory:
+        """Прогноз объекта на весь горизонт.
+
+        Args:
+            obj: Объект.
+            impulses: Импульсы объекта.
+
+        Returns:
+            Траектория.
+        """
         return propagate(
             obj, scenario.epoch, span, scenario.forces,
             numerics=numerics, impulses=impulses,
         )
 
     def approach(satellite: models.Trajectory) -> models.ConjunctionResult:
-        return find_closest_approach(
-            satellite, debris, scenario.safe_distance_m, span, numerics=numerics
-        )
+        """Сближение спутника с мусором на всём горизонте.
+
+        Args:
+            satellite: Траектория спутника.
+
+        Returns:
+            Результат поиска сближения.
+        """
+        return find_closest_approach(satellite, debris,
+                                     scenario.safe_distance_m, span,
+                                     numerics=numerics)
 
     try:
         debris = track(scenario.debris)
         before = approach(track(scenario.satellite))
     except models.PropagationError as exc:
         return models.ManeuverResult(
-            models.Status.PROPAGATION_FAILED, None, None, None, message=str(exc)
-        )
+            models.Status.PROPAGATION_FAILED, None, None, None,
+            message=str(exc))
     if before.closest.distance_m >= required_distance:
-        return models.ManeuverResult(models.Status.ALREADY_SAFE, None, before, before)
+        return models.ManeuverResult(models.Status.ALREADY_SAFE, None, before,
+                                     before)
 
     limits = scenario.limits
     journal = []
@@ -111,11 +153,14 @@ def search_maneuver(
         try:
             after = approach(track(scenario.satellite, (impulse,)))
         except models.PropagationError as exc:
-            journal.append(models.CandidateResult(impulse, False, None, str(exc)))
+            journal.append(
+                models.CandidateResult(impulse, False, None, str(exc)))
             continue
         admissible = after.closest.distance_m >= required_distance
-        reason = "" if admissible else "Минимальная дистанция меньше порога с запасом"
-        journal.append(models.CandidateResult(impulse, admissible, after, reason))
+        reason = ("" if admissible
+                  else "Минимальная дистанция меньше порога с запасом")
+        journal.append(
+            models.CandidateResult(impulse, admissible, after, reason))
 
     evaluated = tuple(journal)
     best = min(
