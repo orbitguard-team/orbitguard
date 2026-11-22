@@ -15,6 +15,8 @@ EPOCH = datetime(2026, 11, 22, tzinfo=timezone.utc)
 
 
 class AnalyticTrajectory:
+    """Траектория, заданная аналитическими функциями положения и скорости."""
+
     frame = "ECI-J2000"
     epoch = EPOCH
 
@@ -24,7 +26,16 @@ class AnalyticTrajectory:
         self.velocity = velocity
         self.cross_track = cross_track
 
-    def state_at(self, time, *, side="right"):
+    def state_at(self, time: float, *, side: str = "right") -> np.ndarray:
+        """Состояние в момент времени.
+
+        Args:
+            time: Момент, с от epoch.
+            side: Сторона импульса.
+
+        Returns:
+            Состояние (6,), м и м/с.
+        """
         return np.array([
             self.position(time), self.cross_track, 0,
             self.velocity(time, side), 0, 0,
@@ -32,6 +43,8 @@ class AnalyticTrajectory:
 
 
 class ConjunctionTests(unittest.TestCase):
+    """Поиск сближения на аналитических траекториях."""
+
     def setUp(self):
         self.stationary = AnalyticTrajectory(
             [0, 10], lambda _: 0, lambda _t, _side: 0
@@ -65,25 +78,32 @@ class ConjunctionTests(unittest.TestCase):
         self.assertEqual(len(coarse.all_minima), 4)
         self.assertEqual(len(dense.all_minima), 4)
         for result in (coarse, dense):
-            for candidate, expected in zip(result.all_minima, (0, math.pi, 3 * math.pi, 10)):
+            expected_times = (0, math.pi, 3 * math.pi, 10)
+            for candidate, expected in zip(result.all_minima, expected_times):
                 self.assertAlmostEqual(candidate.t_s, expected, delta=1e-3)
-        for coarse_minimum, dense_minimum in zip(coarse.all_minima, dense.all_minima):
-            self.assertAlmostEqual(coarse_minimum.t_s, dense_minimum.t_s, delta=0.01)
-            self.assertAlmostEqual(coarse_minimum.distance_m, dense_minimum.distance_m, delta=0.1)
+        for coarse_minimum, dense_minimum in zip(coarse.all_minima,
+                                                 dense.all_minima):
+            self.assertAlmostEqual(coarse_minimum.t_s, dense_minimum.t_s,
+                                   delta=0.01)
+            self.assertAlmostEqual(coarse_minimum.distance_m,
+                                   dense_minimum.distance_m, delta=0.1)
 
     def test_boundary_minimum_and_constant_distance(self):
         for slope, expected in ((-1, 8), (0, 2), (1, 2)):
             with self.subTest(slope=slope):
                 moving = AnalyticTrajectory(
-                    [0, 10], lambda t: 20 + slope * t,
-                    lambda _t, _side: slope,
+                    [0, 10], lambda t, k=slope: 20 + k * t,
+                    lambda _t, _side, k=slope: k,
                 )
-                result = find_closest_approach(moving, self.stationary, 1, (2, 8))
+                result = find_closest_approach(moving, self.stationary, 1,
+                                               (2, 8))
                 self.assertEqual(result.closest.t_s, expected)
-                self.assertEqual([item.t_s for item in result.all_minima], [2, 8])
+                self.assertEqual([item.t_s for item in result.all_minima],
+                                 [2, 8])
 
     def test_rejects_incompatible_trajectories_and_partial_coverage(self):
-        moving = AnalyticTrajectory([2, 12], lambda t: t - 5, lambda _t, _side: 1)
+        moving = AnalyticTrajectory([2, 12], lambda t: t - 5,
+                                    lambda _t, _side: 1)
         for interval in ((0, 10), (2, 12), (8, 2), (2, 2)):
             with self.subTest(interval=interval), self.assertRaises(ValueError):
                 find_closest_approach(moving, self.stationary, 1, interval)
@@ -98,7 +118,16 @@ class ConjunctionTests(unittest.TestCase):
             find_closest_approach(moving, self.stationary, 1, (2, 10))
 
     def test_impulse_minimum_at_exact_knot(self):
-        def velocity(t, side):
+        def velocity(t: float, side: str) -> float:
+            """Скорость со скачком в момент импульса 4.2 с.
+
+            Args:
+                t: Момент, с.
+                side: Сторона импульса.
+
+            Returns:
+                Скорость, м/с.
+            """
             return -1 if t < 4.2 or (t == 4.2 and side == "left") else 2
 
         moving = AnalyticTrajectory(
