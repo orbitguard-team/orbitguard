@@ -1,0 +1,64 @@
+# Проверки на каждый PR и push в main (OG-09).
+# Названия проверок для защиты main: «tests (Python 3.11)»,
+# «tests (Python 3.12)», «style (pylint)».
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          if [ -f pyproject.toml ]; then python -m pip install -e ".[dev,ui]"; fi
+
+      - name: pytest
+        run: python -m pytest
+
+  style:
+    name: style (pylint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Установка зависимостей
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+          if [ -f pyproject.toml ]; then python -m pip install -e ".[dev,ui]"; fi
+
+      # Заглушки тестов похожи друг на друга, поэтому в tests/
+      # проверка дублирования отключена; в остальном коде она работает.
+      - name: pylint
+        run: |
+          code=$(git ls-files '*.py' ':!:tests/*')
+          if [ -n "$code" ]; then python -m pylint $code; fi
+          python -m pylint --disable=duplicate-code,redefined-outer-name $(git ls-files 'tests/*.py')

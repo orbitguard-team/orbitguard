@@ -2,10 +2,9 @@
 
 Правила работы, стиль кода, контракт данных и API — единые для всех участников.
 
-> **Статус:** действует для всех участников.
-> Правила работы (раздел 1) и стиль кода (раздел 3) обязательны.
-> Контракт и API (разделы 4–7) — основа, принятая в #1. Точные структуры и сигнатуры
-> фиксирует `docs/contracts.md` (OG-01); при расхождении верен он.
+> **Статус:** правила работы и стиль обязательны для всех участников.
+> Единственный источник API — [contracts.md](contracts.md) и `models.py`.
+> Принятие кандидата OG-01 требует независимого review и merge PR #16.
 
 ## 1. Правила работы
 
@@ -31,7 +30,7 @@ orbitguard/
 ├── src/orbitguard/
 │   ├── constants.py            # физические константы (OG-01)
 │   ├── models.py               # структуры данных (OG-01)
-│   ├── elements.py             # перевод элементов орбиты в положение и скорость (OG-01)
+│   ├── elements.py             # конвертер элементов (будущее расширение OG-06)
 │   ├── propagation.py          # прогноз движения (OG-02)
 │   ├── forces/
 │   │   ├── gravity.py          # Земля и J2 (OG-02, OG-13)
@@ -63,11 +62,11 @@ orbitguard/
 | Аннотации типов у всех публичных функций и методов | `def propagate(obj: models.SpaceObject, ...) -> Trajectory:` |
 | Изменяемые значения не используются как аргументы по умолчанию | `impulses: Sequence[Impulse] = ()`, а не `= []` |
 | Строки форматируются через f-строки | `f"Высота {altitude_m:.0f} м"` |
-| Без магических чисел: константы — в `constants.py` | `MU_EARTH_M3PS2`, а не `3.986e14` в коде |
+| Без магических чисел: константы — в `constants.py` | `MU_EARTH_M3_S2`, а не `3.986e14` в коде |
 | Без `print`, глобального состояния и скрытых значений по умолчанию | Для диагностики — `logging` |
 | Входные данные не изменяются | Структуры данных `frozen=True` |
 | Исключения ловим конкретные, не голый `except:` | `except ValueError:` |
-| Проверка стиля — `pylint` с конфигурацией Google, если команда подключит его в OG-09 | |
+| Проверка стиля — `pylint` в CI по `.pylintrc`, строго: любое замечание проваливает PR. Как в pylintrc Google, docstring не обязателен у тестов, а метрики размера (too-many-*) не проверяются | `python -m pylint $(git ls-files '*.py')` |
 
 ### Docstring
 
@@ -111,7 +110,7 @@ def find_closest_approach(
 | Класс, исключение | `CapWords` | `ConjunctionResult`, `PropagationError` |
 | Функция, метод | `lower_with_under`, глагол | `find_closest_approach` |
 | Переменная, аргумент | `lower_with_under` | `miss_distance_m` |
-| Константа модуля | `CAPS_WITH_UNDER` с единицей | `R_EARTH_M` |
+| Константа модуля | `CAPS_WITH_UNDER` с единицей | `EARTH_RADIUS_M` |
 | Внутреннее | префикс `_` | `_refine_minimum` |
 | Тест | `test_<что>_<ожидание>` | `test_circular_orbit_period_matches_kepler` |
 
@@ -134,14 +133,15 @@ def find_closest_approach(
 | `_deg` | градус — **только** ввод и вывод | `inclination_deg` |
 | `_kgpm3` | кг/м³ | `density_kgpm3` |
 | `_radps` | рад/с | `OMEGA_EARTH_RADPS` |
-| `_m3ps2` | м³/с² | `MU_EARTH_M3PS2` |
+| `_m3_s2` | м³/с² | `MU_EARTH_M3_S2` |
 
 | Суффикс | Система координат |
 |---|---|
 | `_eci` | инерциальная, ось z — ось вращения Земли |
 | `_rtn` | локальная: радиально, вдоль орбиты, по нормали к плоскости орбиты |
 
-Без единицы — только безразмерные величины: `cd`, `density_scale`, `J2`.
+Без единицы — безразмерные `cd`, `density_scale`, `j2`, `rtol`.
+Смешанные состояния `state0` и `states` содержат метры и м/с; система — ECI-J2000.
 
 ### Массивы
 
@@ -149,9 +149,9 @@ def find_closest_approach(
 |---|---|---|
 | Положение | `(3,)` | `r_eci_m` |
 | Скорость | `(3,)` | `v_eci_mps` |
-| Состояние | `(6,)` = `[x, y, z, vx, vy, vz]` | `state_eci` |
+| Состояние | `(6,)` = `[x, y, z, vx, vy, vz]` | `state0` |
 | Сетка времени | `(N,)` | `t_s` |
-| Состояния на сетке | `(N, 6)` | `states_eci` |
+| Состояния на сетке | `(N, 6)` | `states` |
 
 Форма массива указывается в комментарии при объявлении. Тип — `float64`.
 
@@ -162,7 +162,7 @@ def find_closest_approach(
 | Неверный ввод (отрицательная дистанция, нет даты) | `ValueError` с понятным текстом на русском при загрузке сценария |
 | Нормальный исход расчёта (манёвр не найден) | Статус в результате |
 | Сбой расчёта (интегратор не сошёлся, сход с орбиты) | Статус `PROPAGATION_FAILED` + текст причины |
-| Сила не посчитана из-за нехватки данных | Предупреждение в результате, а не молчаливый пропуск |
+| Сила не посчитана из-за нехватки данных | ValueError для нехватки данных; UnsupportedForceError для нереализованной силы |
 
 ### Тесты
 
@@ -174,223 +174,8 @@ def find_closest_approach(
 | Без сети и случайности; если нужна случайность — фиксированный seed | `np.random.default_rng(0)` |
 | Запуск: `pytest` из корня репозитория | |
 
-## 4. Контракт данных
+## 4. Контракт данных и API
 
-| Что | Решение |
-|---|---|
-| Единицы | СИ; углы внутри — радианы |
-| Система координат | ECI, ось z — ось вращения Земли, без прецессии и нутации |
-| Время | `epoch` — дата и время начала в UTC (`datetime` с часовым поясом); всё остальное — секунды от неё |
-| Состояние объекта | `[x, y, z, vx, vy, vz]` в ECI |
-| Ввод орбит | Положение и скорость или элементы орбиты; элементы переводятся при загрузке |
-| Структуры | `dataclass(frozen=True)` + NumPy |
-| Сценарии | JSON в папке `scenarios/` |
-| Допуски интегратора (стартовые) | `rtol = 1e-10`, `atol` = 1e-3 м по положению и 1e-6 м/с по скорости; подтверждаются тестом сходимости |
-
-### Структуры (`models.py`)
-
-```python
-@dataclass(frozen=True)
-class SpaceObject:
-    name: str
-    state0_eci: np.ndarray            # (6,) м и м/с в момент epoch
-    # Без массы, площади и cd атмосфера для объекта не считается.
-    mass_kg: float | None = None
-    area_m2: float | None = None
-    cd: float | None = None
-
-
-@dataclass(frozen=True)
-class ForceModel:
-    j2: bool = True
-    drag: bool = False
-    moon: bool = False
-    sun: bool = False
-    density_scale: float = 1.0        # поправка на солнечную активность
-
-
-@dataclass(frozen=True)
-class ManeuverLimits:
-    dv_max_mps: float
-    t_earliest_s: float
-    t_latest_s: float                 # строго раньше момента сближения
-
-
-@dataclass(frozen=True)
-class Scenario:
-    name: str
-    epoch: datetime                   # UTC
-    horizon_s: float
-    satellite: SpaceObject
-    debris: SpaceObject
-    forces: ForceModel
-    safe_distance_m: float
-    limits: ManeuverLimits
-    synthetic: bool = True
-    source: str = ""                  # откуда данные или как построены
-
-
-@dataclass(frozen=True)
-class Impulse:
-    t_s: float
-    dv_eci_mps: np.ndarray            # (3,)
-    dv_rtn_mps: np.ndarray            # (3,)
-
-
-class Trajectory(Protocol):
-    t_s: np.ndarray                   # (N,)
-    states_eci: np.ndarray            # (N, 6)
-
-    def state_at(self, t_s: float | np.ndarray) -> np.ndarray:
-        """Состояние в любой момент: (6,) или (M, 6).
-
-        Учитывает разрыв скорости в момент импульса.
-        """
-
-
-@dataclass(frozen=True)
-class Approach:
-    tca_s: float                      # момент сближения
-    miss_distance_m: float
-    rel_speed_mps: float
-
-
-@dataclass(frozen=True)
-class ConjunctionResult:
-    closest: Approach
-    all_minima: list[Approach]        # все локальные минимумы
-    violated: bool                    # ближе безопасной дистанции
-
-
-class Status(Enum):
-    ALREADY_SAFE = "already_safe"
-    FEASIBLE = "feasible"
-    NO_FEASIBLE_CANDIDATE = "no_feasible_candidate"
-    PROPAGATION_FAILED = "propagation_failed"
-    NOT_IMPLEMENTED = "not_implemented"   # только для заглушек
-
-
-@dataclass(frozen=True)
-class Candidate:
-    burn: Impulse
-    miss_distance_m: float
-    feasible: bool
-
-
-@dataclass(frozen=True)
-class ManeuverResult:
-    status: Status
-    best: Impulse | None
-    before: ConjunctionResult
-    after: ConjunctionResult | None
-    candidates: list[Candidate]
-    forces: ForceModel                # какие силы были включены
-    warnings: list[str]
-    compute_time_s: float
-```
-
-## 5. API
-
-| Модуль | Функция | Вход | Выход | Задача |
-|---|---|---|---|---|
-| `scenarios` | `load_scenario` | путь к JSON | `Scenario` | OG-06 |
-| `elements` | `elements_to_state` | элементы орбиты | `state_eci` `(6,)` | OG-01 |
-| `propagation` | `propagate` | объект, дата, интервал, силы, импульсы | `Trajectory` | OG-02 |
-| `forces.*` | `accel_*` | `t_s`, `r_eci_m`, `v_eci_mps`, `ctx` | ускорение `(3,)` м/с² | OG-02, 13–15 |
-| `conjunction` | `find_closest_approach` | две траектории, дистанция, интервал | `ConjunctionResult` | OG-03 |
-| `maneuver` | `search_maneuver` | `Scenario` | `ManeuverResult` | OG-04 |
-| `metrics` | `summarize`, `export_json` | `ManeuverResult` | таблица / файл | OG-05 |
-
-```python
-# scenarios.py
-def load_scenario(path: str | Path) -> Scenario: ...
-
-# elements.py
-def elements_to_state(
-    sma_m: float, ecc: float, inclination_rad: float,
-    raan_rad: float, argp_rad: float, true_anomaly_rad: float,
-) -> np.ndarray: ...                  # (6,) ECI
-
-# propagation.py
-def propagate(
-    obj: SpaceObject, epoch: datetime, t_span_s: tuple[float, float],
-    forces: ForceModel, impulses: Sequence[Impulse] = (),
-) -> Trajectory: ...
-
-# forces/*.py — одна сигнатура для всех сил
-@dataclass(frozen=True)
-class ForceContext:
-    epoch: datetime
-    obj: SpaceObject
-    forces: ForceModel
-
-def accel_central(
-    t_s: float,
-    r_eci_m: np.ndarray,
-    v_eci_mps: np.ndarray,
-    ctx: ForceContext,
-) -> np.ndarray: ...                  # (3,) м/с²
-
-# Остальные силы — с той же сигнатурой:
-def accel_j2(t_s, r_eci_m, v_eci_mps, ctx) -> np.ndarray: ...
-def accel_drag(t_s, r_eci_m, v_eci_mps, ctx) -> np.ndarray: ...
-def accel_moon(t_s, r_eci_m, v_eci_mps, ctx) -> np.ndarray: ...
-def accel_sun(t_s, r_eci_m, v_eci_mps, ctx) -> np.ndarray: ...
-
-# conjunction.py
-def find_closest_approach(
-    a: Trajectory,
-    b: Trajectory,
-    safe_distance_m: float,
-    t_span_s: tuple[float, float],
-) -> ConjunctionResult: ...
-
-# maneuver.py
-def search_maneuver(scenario: Scenario) -> ManeuverResult: ...
-
-# metrics.py
-def summarize(result: ManeuverResult) -> dict[str, float | str]: ...
-def export_json(
-    scenario: Scenario, result: ManeuverResult, path: str | Path
-) -> None: ...
-```
-
-### Статусы
-
-| Статус | Когда | Что показывает интерфейс |
-|---|---|---|
-| `already_safe` | Без манёвра дистанция больше безопасной | «Манёвр не нужен» |
-| `feasible` | Найден безопасный манёвр | Манёвр, Δv, до/после |
-| `no_feasible_candidate` | Среди проверенных вариантов безопасного нет | «Не найден в заданных пределах» — без отметки «безопасно» |
-| `propagation_failed` | Сбой расчёта | Причина ошибки |
-| `not_implemented` | Модуль ещё заглушка | «Расчёт не подключён» |
-
-## 6. Формат сценария (JSON)
-
-| Поле | Тип | Обязательно | Пример |
-|---|---|---|---|
-| `name` | строка | да | `"dangerous_iss_like"` |
-| `synthetic` | bool | да | `true` |
-| `source` | строка | да | `"МКС-подобная орбита, мусор задан обратным расчётом"` |
-| `epoch_utc` | ISO 8601 | да | `"2026-01-01T00:00:00Z"` |
-| `horizon_s` | число | да | `86400` |
-| `safe_distance_m` | число | да | `1000` |
-| `forces` | объект | да | `{"j2": true, "drag": false, "moon": false, "sun": false, "density_scale": 1.0}` |
-| `satellite`, `debris` | объект | да | `state0_eci` **или** `elements`; `mass_kg`, `area_m2`, `cd` — по желанию |
-| `limits` | объект | да | `{"dv_max_mps": 1.0, "t_earliest_s": 0, "t_latest_s": 39600}` |
-
-В JSON углы элементов орбиты задаются в градусах с суффиксом `_deg`; при загрузке переводятся в радианы.
-
-## 7. Константы (`constants.py`)
-
-| Имя | Значение | Источник |
-|---|---|---|
-| `MU_EARTH_M3PS2` | 3.986004418e14 | WGS 84 |
-| `R_EARTH_M` | 6378137.0 | WGS 84 |
-| `FLATTENING_EARTH` | 1 / 298.257223563 | WGS 84 |
-| `J2` | 1.08262668e-3 | EGM2008 |
-| `R_EARTH_GRAV_M` | 6378136.3 | EGM2008 — радиус для формулы J2, в паре с `J2` |
-| `OMEGA_EARTH_RADPS` | 7.292115e-5 | WGS 84 |
-| `MU_MOON_M3PS2` | 4.902800066e12 | JPL DE430 |
-| `MU_SUN_M3PS2` | 1.32712440018e20 | IAU |
-| `REENTRY_ALTITUDE_M` | 100e3 | Условная граница остановки расчёта |
+Структуры, сигнатуры, JSON, константы и численные критерии определены
+в [contracts.md](contracts.md). Прежние черновики API удалены, чтобы
+параллельные задачи использовали один контракт.
