@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from scipy.optimize import minimize_scalar
 
 from orbitguard import models
 from orbitguard.maneuver import build_rtn_candidates, search_maneuver
@@ -61,7 +62,7 @@ def test_three_scenarios_have_calculated_status(name):
 
 
 def test_selected_maneuver_safe_on_dense_full_horizon():
-    """Плотная независимая выборка подтверждает запас по горизонту."""
+    """Независимо уточняет каждый минимум на всём горизонте."""
     scenario, expected = _load("dangerous_feasible")
     burn = expected.witness.impulse
     result = search_maneuver(scenario, candidates=(burn,))
@@ -70,14 +71,36 @@ def test_selected_maneuver_safe_on_dense_full_horizon():
                     numerics=scenario.numerics, impulses=(burn,))
     debris = propagate(scenario.debris, scenario.epoch, span, scenario.forces,
                        numerics=scenario.numerics)
-    tca = result.after.closest.t_s
-    times = np.unique(np.r_[np.arange(0, span[1], 10), span[1],
-                            np.arange(tca - 2, tca + 2.01, 0.01)])
-    distances = [np.linalg.norm(sat.state_at(float(t))[:3]
-                                - debris.state_at(float(t))[:3]) for t in times]
+    def distance(time):
+        """Расстояние по независимо выбранному времени, м.
+
+        Args:
+            time (float): Секунды от начала сценария.
+
+        Returns:
+            float: Расстояние между объектами, м.
+        """
+        return float(np.linalg.norm(sat.state_at(float(time))[:3]
+                                    - debris.state_at(float(time))[:3]))
+
+    grid = np.arange(span[0], span[1] + 1, 1.0)
+    distances = np.array([distance(t) for t in grid])
+    local = np.flatnonzero((distances[1:-1] <= distances[:-2])
+                          & (distances[1:-1] <= distances[2:])) + 1
+    refined = [minimize_scalar(distance, bounds=(grid[i - 1], grid[i + 1]),
+                               method="bounded", options={"xatol": 1e-6})
+               for i in local]
+    assert all(item.success for item in refined)
+    independently_found = [(span[0], distances[0]),
+                           *((item.x, item.fun) for item in refined),
+                           (span[1], distances[-1])]
     required = scenario.safe_distance_m + scenario.numerics.distance_margin_m
-    assert min(distances) >= required
-    assert result.after.closest.distance_m >= required
+    assert len(independently_found) == len(result.after.all_minima)
+    for (time, distance_m), recorded in zip(
+            independently_found, result.after.all_minima):
+        assert time == pytest.approx(recorded.t_s, abs=0.01)
+        assert distance_m == pytest.approx(recorded.distance_m, abs=0.1)
+    assert min(distance_m for _, distance_m in independently_found) >= required
 
 
 def test_insufficient_budget_and_late_window_are_explicit():
@@ -92,8 +115,21 @@ def test_insufficient_budget_and_late_window_are_explicit():
         assert result.after is None and not result.candidates[0].admissible
 
 
+def test_budget_and_window_boundaries_are_inclusive():
+    """Импульс ровно на пределах Δv и окна остаётся допустимым."""
+    scenario, expected = _load("dangerous_feasible")
+    burn = expected.witness.impulse
+    for limits in (replace(scenario.limits, dv_max_mps=burn.dv_mps),
+                   replace(scenario.limits, t_earliest_s=burn.t_s,
+                           t_latest_s=burn.t_s)):
+        result = search_maneuver(replace(scenario, limits=limits),
+                                 candidates=(burn,))
+        assert result.status is models.Status.FEASIBLE
+        assert result.candidates[0].admissible
+
+
 def test_late_warning_has_no_solution_in_nonempty_grid():
-    """Опасный поздний сценарий отвергает двенадцать допустимых импульсов."""
+    """Опасный поздний сценарий отвергает двенадцать проверенных импульсов."""
     scenario, _ = _load("late_warning_no_solution")
     baseline = propagate(
         scenario.satellite, scenario.epoch, (0, scenario.horizon_s),
