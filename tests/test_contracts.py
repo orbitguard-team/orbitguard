@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from orbitguard.api import propagate, search_maneuver
+from orbitguard.api import search_maneuver
 from orbitguard.models import (
     Approach, ConjunctionResult, ForceModel, Impulse, ManeuverLimits,
     ManeuverResult, Numerics, Scenario, SpaceObject, Status,

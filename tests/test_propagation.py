@@ -19,12 +19,25 @@ EPOCH = datetime.datetime(2026, 11, 22, tzinfo=datetime.timezone.utc)
 
 
 def circular_object():
+    """Объект на круговой орбите радиуса RADIUS_M.
+
+    Returns:
+        models.SpaceObject: Начальное состояние в ECI.
+    """
     return models.SpaceObject(
         "circle", [RADIUS_M, 0, 0, 0, SPEED_MPS, 0]
     )
 
 
 def analytical_state(t_s):
+    """Аналитическое состояние круговой орбиты.
+
+    Args:
+        t_s (float): Время от epoch, с.
+
+    Returns:
+        np.ndarray: Состояние (6,) в м и м/с.
+    """
     angle = SPEED_MPS * t_s / RADIUS_M
     return np.array([
         RADIUS_M * np.cos(angle), RADIUS_M * np.sin(angle), 0,
@@ -34,6 +47,11 @@ def analytical_state(t_s):
 
 @pytest.fixture(scope="module")
 def circle():
+    """Численная траектория на один период.
+
+    Returns:
+        IntegratedTrajectory: Траектория RK45 круговой орбиты.
+    """
     return propagate(
         circular_object(), EPOCH, (0, PERIOD_S), models.ForceModel()
     )
@@ -181,7 +199,16 @@ def test_falling_object_stops_at_altitude_boundary():
 
 
 def test_solver_failure_is_explicit(monkeypatch):
-    def failed_solver(*args, **kwargs):
+    def failed_solver(*_args, **_kwargs):
+        """Имитирует неуспешный solve_ivp.
+
+        Args:
+            *_args: Позиционные аргументы solve_ivp, не используются.
+            **_kwargs: Именованные аргументы solve_ivp, не используются.
+
+        Returns:
+            types.SimpleNamespace: Результат с success=False.
+        """
         return types.SimpleNamespace(success=False, message="test failure")
 
     monkeypatch.setattr(propagation.integrate, "solve_ivp", failed_solver)

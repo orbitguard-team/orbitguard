@@ -9,7 +9,11 @@ from orbitguard import constants, models, propagation
 
 
 def measure() -> dict[str, float]:
-    """Сравнивает численную круговую орбиту с аналитическим решением."""
+    """Сравнивает численную круговую орбиту с аналитическим решением.
+
+    Returns:
+        Измеренные ошибки периода, возврата и дрейфа инвариантов.
+    """
     radius_m = 7_000_000.0
     mu = constants.MU_EARTH_M3_S2
     speed_mps = np.sqrt(mu / radius_m)
