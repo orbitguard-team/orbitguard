@@ -44,13 +44,14 @@ J2, атмосфера, Луна и Солнце выключены. Импул�
 Импульс ровно на границе бюджета и окно ровно в момент импульса проверены
 отдельно: оба варианта дают `feasible` и допустимого кандидата.
 
-Обнаруженный дефект публичного API: в текущем `main` функции
+Обнаруженный дефект публичного API: до слияния
+[PR #33](https://github.com/orbitguard-team/orbitguard/pull/33) функции
 `orbitguard.api.find_closest_approach`, `search_maneuver` и `load_scenario`
-ещё являются заглушками и вызывают `NotImplementedError`, хотя реализация
-в соответствующих модулях работает. Это нарушение обещанного в
-[contracts.md](contracts.md) интерфейса и блокер релиза. Исправление
-подготовлено в [PR #33](https://github.com/orbitguard-team/orbitguard/pull/33);
-его нужно слить и проверить тесты на объединённом `main` до закрытия OG-10.
+были заглушками и вызывали `NotImplementedError`, хотя реализации уже
+работали в соответствующих модулях. Это нарушало контракт из
+[contracts.md](contracts.md) и блокировало релиз. Исправление слито в
+`main` коммитом `6dcd7bb`; ветка OG-10 объединена с ним для интеграционной
+проверки.
 
 Проверки на Windows, Python 3.13.12, NumPy 2.5.5, SciPy 1.18.1:
 
@@ -74,6 +75,12 @@ python -m pytest tests/integration/test_end_to_end.py -q
 9 passed in 19.06s
 python -m pytest -q
 223 passed, 20 skipped, 7 subtests passed in 34.71s
+python -m pylint --disable=duplicate-code,redefined-outer-name tests/integration/test_end_to_end.py
+10.00/10
+
+# после слияния PR #33 в main и объединения main с веткой OG-10:
+python -m pytest -q
+223 passed, 20 skipped, 7 subtests passed in 138.23s
 python -m pylint --disable=duplicate-code,redefined-outer-name tests/integration/test_end_to_end.py
 10.00/10
 ```
