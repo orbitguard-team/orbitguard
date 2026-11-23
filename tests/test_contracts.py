@@ -1,4 +1,4 @@
-"""Валидация контракта и владение массивами; без орбитального расчёта."""
+"""Валидация контракта, владение массивами и публичный API."""
 
 from dataclasses import replace
 from datetime import datetime
@@ -9,7 +9,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from orbitguard.api import search_maneuver
+from orbitguard.api import (
+    find_closest_approach, load_scenario, propagate, search_maneuver,
+)
 from orbitguard.models import (
     Approach, ConjunctionResult, ForceModel, Impulse, ManeuverLimits,
     ManeuverResult, Numerics, Scenario, SpaceObject, Status,
@@ -126,10 +128,28 @@ def test_threshold_boundary_and_explicit_no_solution():
     assert Impulse(0, [3, 4, 0]).dv_mps == 5
 
 
-def test_unimplemented_algorithms_never_report_success(scenario):
-    """Заглушка поиска не выдаёт успешный физический результат."""
-    with pytest.raises(NotImplementedError, match="OG-04"):
-        search_maneuver(scenario, candidates=[])
+def test_public_api_runs_a_scenario():
+    """Загрузка и орбитальный расчёт работают через общий API."""
+    scenario = load_scenario(ROOT / "scenarios" / "safe_flyby.json")
+    span = (0.0, scenario.horizon_s)
+    satellite = propagate(
+        scenario.satellite, scenario.epoch, span, scenario.forces,
+        numerics=scenario.numerics,
+    )
+    debris = propagate(
+        scenario.debris, scenario.epoch, span, scenario.forces,
+        numerics=scenario.numerics,
+    )
+    closest = find_closest_approach(
+        satellite, debris, scenario.safe_distance_m, span,
+        numerics=scenario.numerics,
+    )
+    assert closest.accepted
+
+    result = search_maneuver(scenario, candidates=())
+    assert result.status is Status.ALREADY_SAFE
+    assert result.best is None
+    assert result.before == result.after == closest
 
 
 def test_json_fixture_matches_python_fixture(scenario):
